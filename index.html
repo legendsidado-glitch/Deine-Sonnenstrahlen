@@ -1,618 +1,631 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Deine-Sonnenstrahlen</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/lucide@latest"></script>
   <style>
-    /* Global Styles & Animations */
-    body { font-family: system-ui, -apple-system, sans-serif; background-color: #FDF9FF; }
-    ::selection { background-color: #fde047; color: #7c2d12; }
-    
+    :root {
+      --sun-yellow: #facc15;
+      --sun-orange: #fb923c;
+      --pastel-purple: #d8b4fe;
+      --deep-purple: #581c87;
+      --soft-bg: #fff7ed;
+      --danger: #b91c1c;
+    }
+
+    body {
+      font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      background: radial-gradient(circle at 10% 5%, #fef9c3 0%, #fff7ed 35%, #faf5ff 72%, #f5f3ff 100%);
+      color: #3f3f46;
+    }
+
+    .glass {
+      background: linear-gradient(145deg, rgba(255, 255, 255, 0.88), rgba(255, 255, 255, 0.72));
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(216, 180, 254, 0.38);
+      box-shadow: 0 16px 40px rgba(249, 115, 22, 0.13), 0 10px 26px rgba(88, 28, 135, 0.09);
+    }
+
+    .fade-in {
+      animation: fadeIn 0.75s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+    }
+
+    .device-part {
+      transition: all 840ms cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    .chat-scroll::-webkit-scrollbar { width: 8px; }
+    .chat-scroll::-webkit-scrollbar-track { background: transparent; }
+    .chat-scroll::-webkit-scrollbar-thumb { border-radius: 999px; background: linear-gradient(180deg, #fdba74, #c084fc); }
+
+    .hidden-important { display: none !important; }
+
+    .input-base {
+      border: 1px solid #ddd6fe;
+      background: #faf5ff;
+      border-radius: 0.9rem;
+      padding: 0.7rem 0.9rem;
+      outline: none;
+      transition: 180ms ease;
+    }
+
+    .input-base:focus {
+      border-color: #fb923c;
+      box-shadow: 0 0 0 4px rgba(251, 146, 60, 0.2);
+      background: #fff;
+    }
+
+    .field-error {
+      border-color: #fca5a5 !important;
+      background: #fff1f2 !important;
+      box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.15) !important;
+    }
+
     @keyframes fadeIn {
       from { opacity: 0; transform: translateY(10px); }
       to { opacity: 1; transform: translateY(0); }
     }
-    .fade-in { animation: fadeIn 0.6s ease-out forwards; }
-    
-    @keyframes pulse-fast {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.5; }
-    }
-    .animate-pulse-fast { animation: pulse-fast 1s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
-
-    /* Custom Scrollbar for Chat */
-    .chat-scroll::-webkit-scrollbar { width: 6px; }
-    .chat-scroll::-webkit-scrollbar-track { background: transparent; }
-    .chat-scroll::-webkit-scrollbar-thumb { background: #e9d5ff; border-radius: 10px; }
-    
-    .hidden { display: none !important; }
   </style>
 </head>
-<body class="selection:bg-yellow-300 selection:text-orange-900 overflow-hidden">
+<body class="min-h-screen overflow-hidden">
+  <div id="toast" class="fixed top-4 left-1/2 -translate-x-1/2 z-[70] px-5 py-2.5 rounded-full text-sm font-semibold shadow-xl border opacity-0 pointer-events-none transition-all duration-300 bg-white text-purple-900 border-purple-200"></div>
 
-  <!-- Custom Modal for Errors/Alerts (No alert() used) -->
-  <div id="toast-modal" class="fixed top-5 left-1/2 transform -translate-x-1/2 z-[100] bg-red-100 border border-red-300 text-red-800 px-6 py-3 rounded-full shadow-lg transition-all duration-300 opacity-0 pointer-events-none flex items-center gap-2 font-medium">
-    <i data-lucide="alert-circle" class="w-5 h-5"></i>
-    <span id="toast-msg">Error</span>
-  </div>
-
-  <!-- Morphing Device Loading Screen (Shadow Removed) -->
-  <div id="loading-screen" class="fixed inset-0 z-50 flex flex-col items-center justify-center bg-gradient-to-br from-purple-50 to-orange-50 transition-opacity duration-700 opacity-100">
-    <div class="relative w-80 h-80">
-      <svg viewBox="0 0 300 300" class="w-full h-full text-orange-500">
+  <div id="loading-screen" class="fixed inset-0 z-50 flex flex-col items-center justify-center bg-gradient-to-br from-orange-100 via-amber-50 to-purple-100 transition-opacity duration-700">
+    <div class="relative w-72 h-72 sm:w-80 sm:h-80">
+      <svg viewBox="0 0 300 300" class="w-full h-full">
         <defs>
-          <linearGradient id="deviceGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="#FACC15" />
-            <stop offset="100%" stopColor="#F97316" />
+          <linearGradient id="sunset" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#facc15"></stop>
+            <stop offset="100%" stop-color="#fb923c"></stop>
           </linearGradient>
         </defs>
-        <rect id="dev-base" class="transition-all duration-1000 ease-in-out" fill="#D8B4E2" />
-        <rect id="dev-tower" class="transition-all duration-1000 ease-in-out" fill="url(#deviceGradient)" />
-        <rect id="dev-neck" class="transition-all duration-1000 ease-in-out" fill="#D8B4E2" />
-        <rect id="dev-stand" class="transition-all duration-1000 ease-in-out" fill="#D8B4E2" />
-        <rect id="dev-screen" class="transition-all duration-1000 ease-in-out" fill="url(#deviceGradient)" />
-        <rect id="dev-cutout" class="transition-all duration-1000 ease-in-out" fill="#FFF" />
+
+        <rect id="shape-screen" class="device-part" fill="url(#sunset)" rx="18"></rect>
+        <rect id="shape-cutout" class="device-part" fill="#ffffff" rx="14"></rect>
+        <rect id="shape-stand" class="device-part" fill="#d8b4fe"></rect>
+        <rect id="shape-neck" class="device-part" fill="#c084fc"></rect>
+        <rect id="shape-base" class="device-part" fill="#e9d5ff"></rect>
+        <rect id="shape-tower" class="device-part" fill="url(#sunset)"></rect>
+
+        <circle id="shape-camera" class="device-part" fill="#7c3aed" r="0"></circle>
+        <rect id="shape-home-btn" class="device-part" fill="#a78bfa" rx="3"></rect>
+        <rect id="shape-side-btn-1" class="device-part" fill="#c4b5fd" rx="2"></rect>
+        <rect id="shape-side-btn-2" class="device-part" fill="#c4b5fd" rx="2"></rect>
       </svg>
     </div>
-    <h1 class="mt-8 text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-yellow-500 to-orange-500 tracking-wider">
-      Deine-Sonnenstrahlen
-    </h1>
-    <p class="mt-3 text-purple-400 font-medium animate-pulse">
-      Initializing Workspace...
-    </p>
+    <h1 class="mt-8 text-3xl font-extrabold tracking-wide bg-gradient-to-r from-yellow-500 via-orange-500 to-purple-500 bg-clip-text text-transparent">Deine-Sonnenstrahlen</h1>
+    <p class="mt-2 text-sm sm:text-base text-purple-700 font-semibold">Preparing adaptive translation community...</p>
   </div>
 
-  <!-- Auth Screen (Now a Modal Triggered for Profiles) -->
-  <div id="auth-screen" class="fixed inset-0 z-50 bg-[#FDF9FF]/90 backdrop-blur-sm flex flex-col items-center justify-center hidden">
-    <div class="bg-white p-10 rounded-3xl shadow-xl shadow-purple-100/50 border border-purple-50 flex flex-col items-center max-w-md w-full text-center fade-in relative">
-      <button id="btn-close-auth" class="absolute top-4 right-4 text-purple-300 hover:text-purple-600 transition-colors">
-        <i data-lucide="x" class="w-6 h-6"></i>
-      </button>
-      <div class="w-16 h-16 rounded-full bg-gradient-to-tr from-yellow-400 to-orange-500 shadow-lg shadow-orange-200 flex items-center justify-center mb-6">
-        <span class="text-white font-bold text-3xl">S</span>
-      </div>
-      <h2 class="text-2xl font-extrabold text-purple-900 mb-2">Join the Community</h2>
-      <p class="text-purple-400 font-medium mb-8">Sign in with your Google Account to set up your profile and start chatting.</p>
-      
-      <button id="btn-google-login" class="w-full bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 font-semibold py-3 px-4 rounded-xl flex items-center justify-center gap-3 transition-colors shadow-sm">
-        <svg class="w-5 h-5" viewBox="0 0 24 24">
-          <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-          <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-          <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
-          <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
-        </svg>
-        Sign in with Google
-      </button>
-    </div>
-  </div>
-
-  <!-- Profile Setup Modal -->
-  <div id="profile-setup-screen" class="fixed inset-0 z-50 bg-[#FDF9FF]/95 backdrop-blur-md flex flex-col items-center justify-center hidden">
-    <form id="profile-form" class="bg-white p-8 rounded-3xl shadow-xl shadow-purple-100/50 border border-purple-50 flex flex-col gap-5 max-w-md w-full fade-in">
-      <div class="text-center mb-2">
-        <h2 class="text-2xl font-extrabold text-purple-900">Create Profile</h2>
-        <p class="text-purple-400 font-medium text-sm">Choose how you appear to others</p>
+  <div id="account-modal" class="fixed inset-0 z-40 hidden-important bg-purple-950/30 backdrop-blur-sm flex items-center justify-center p-4">
+    <form id="account-form" class="glass rounded-3xl w-full max-w-md p-6 fade-in">
+      <div class="flex justify-between items-center mb-4">
+        <h2 class="text-xl font-extrabold text-purple-900">Create your account</h2>
+        <button type="button" id="close-account" class="text-purple-400 hover:text-purple-700"><i data-lucide="x"></i></button>
       </div>
 
-      <!-- Avatar Preview -->
-      <div class="flex justify-center relative group">
-        <div id="avatar-preview-container" class="w-24 h-24 rounded-full bg-purple-50 border-2 border-dashed border-purple-200 overflow-hidden flex items-center justify-center text-purple-300 relative cursor-pointer shadow-inner">
-          <i data-lucide="image-plus" class="w-8 h-8 pointer-events-none"></i>
-          <img id="avatar-img-preview" class="hidden absolute inset-0 w-full h-full object-cover" />
-          <video id="avatar-video-preview" class="hidden absolute inset-0 w-full h-full object-cover" autoplay loop muted playsinline></video>
-        </div>
-        <input type="file" id="avatar-upload" accept="image/*,video/*" class="hidden" />
-        <div class="absolute -bottom-2 bg-white px-3 py-1 rounded-full text-xs font-bold text-orange-500 shadow-md border border-orange-100 pointer-events-none">
-          Add Media
-        </div>
+      <p class="text-xs text-purple-600 mb-4">Upload profile media (image or video, max 10MB) and choose a display name.</p>
+
+      <div class="flex justify-center mb-4">
+        <button type="button" id="media-trigger" class="relative w-24 h-24 rounded-full border-2 border-dashed border-purple-300 bg-purple-50 overflow-hidden flex items-center justify-center">
+          <i id="media-icon" data-lucide="image-plus" class="text-purple-400"></i>
+          <img id="media-image-preview" class="hidden-important absolute inset-0 w-full h-full object-cover" alt="profile preview" />
+          <video id="media-video-preview" class="hidden-important absolute inset-0 w-full h-full object-cover" autoplay loop muted playsinline></video>
+        </button>
+        <input type="file" id="media-input" class="hidden" accept="image/*,video/*" />
       </div>
 
-      <div>
-        <label class="block text-sm font-bold text-purple-900 mb-1">Display Name</label>
-        <input type="text" id="profile-name-input" required placeholder="e.g. SunnyUser" class="w-full bg-purple-50 border border-purple-100 rounded-xl px-4 py-3 text-purple-900 focus:outline-none focus:ring-2 focus:ring-orange-300" />
+      <div class="space-y-1">
+        <label for="display-name" class="text-xs font-semibold text-purple-700">Display name</label>
+        <input id="display-name" type="text" maxlength="30" class="input-base w-full" placeholder="Your name" />
+        <p id="display-name-error" class="text-xs text-red-600 hidden-important">Display name is required.</p>
       </div>
 
-      <button type="submit" id="btn-save-profile" class="mt-2 bg-gradient-to-r from-yellow-400 to-orange-500 text-white font-bold py-3 rounded-xl hover:shadow-lg hover:shadow-orange-200 transition-all flex justify-center items-center gap-2">
-        Save Profile <i data-lucide="chevron-right" class="w-5 h-5"></i>
-      </button>
+      <div class="space-y-1 mt-3">
+        <p id="media-error" class="text-xs text-red-600 hidden-important">Please upload an image or video (max 10MB).</p>
+      </div>
+
+      <button type="submit" class="mt-5 w-full bg-gradient-to-r from-yellow-400 to-orange-500 text-white font-bold py-2.5 rounded-xl shadow-lg shadow-orange-200/50 hover:shadow-orange-300/50">Save account</button>
     </form>
   </div>
 
-  <!-- Main App Interface -->
-  <div id="main-app" class="min-h-screen">
-    <!-- Header -->
-    <header class="sticky top-0 z-30 bg-white/70 backdrop-blur-lg border-b border-purple-100 shadow-sm">
-      <div class="max-w-6xl mx-auto px-4 py-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row justify-between items-center gap-4">
-        <div class="flex items-center gap-3">
-          <div class="w-10 h-10 rounded-full bg-gradient-to-tr from-yellow-400 to-orange-500 shadow-lg shadow-orange-200 flex items-center justify-center">
-            <span class="text-white font-bold text-xl">S</span>
-          </div>
-          <h1 class="text-2xl font-extrabold bg-clip-text text-transparent bg-gradient-to-r from-yellow-500 to-orange-500">
-            Deine-Sonnenstrahlen
-          </h1>
+  <header class="sticky top-0 z-30 glass">
+    <div class="max-w-6xl mx-auto px-4 py-4 sm:px-6 flex flex-wrap gap-4 justify-between items-center">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-full bg-gradient-to-br from-yellow-400 to-orange-500 shadow-lg flex items-center justify-center">
+          <i data-lucide="sun" class="w-5 h-5 text-white"></i>
         </div>
-        
-        <div class="flex items-center gap-4">
-          <!-- Profile Badge / Login Trigger -->
-          <div id="user-display-area" class="flex items-center gap-2 bg-purple-50 px-3 py-1.5 rounded-full border border-purple-100 cursor-pointer hover:bg-purple-100 transition-colors">
-             <div id="header-avatar-container" class="w-6 h-6 rounded-full overflow-hidden bg-white shadow-sm flex items-center justify-center">
-                <i data-lucide="user" class="w-4 h-4 text-purple-300"></i>
-             </div>
-             <span id="header-username" class="text-xs font-bold text-purple-900">Sign In</span>
-          </div>
-
-          <div class="flex items-center gap-2 bg-white px-4 py-2 rounded-full shadow-inner border border-purple-50">
-            <i data-lucide="globe" class="w-4 h-4 text-purple-400"></i>
-            <select id="lang-select" class="bg-transparent border-none text-sm text-purple-900 font-bold focus:ring-0 cursor-pointer outline-none">
-              <option value="de">Deutsch</option>
-              <option value="en">English</option>
-              <option value="es">Español</option>
-              <option value="fr">Français</option>
-              <option value="it">Italiano</option>
-            </select>
-          </div>
+        <div>
+          <h1 class="text-xl sm:text-2xl font-extrabold text-purple-900">Deine-Sonnenstrahlen</h1>
+          <p class="text-xs sm:text-sm text-purple-600">Talk about automatic translation challenges</p>
         </div>
       </div>
-    </header>
 
-    <main class="max-w-6xl mx-auto px-4 py-8 sm:px-6 lg:px-8 grid grid-cols-1 lg:grid-cols-12 gap-8 h-[calc(100vh-80px)]">
-      
-      <!-- Left Column: Chat Section -->
-      <section class="lg:col-span-7 flex flex-col h-full bg-white rounded-3xl shadow-xl shadow-purple-100/50 border border-purple-50 overflow-hidden fade-in">
-        <div class="p-5 border-b border-purple-50 bg-gradient-to-r from-yellow-50 to-orange-50 flex items-center justify-between">
-          <div class="flex items-center gap-2 text-orange-600 font-bold">
-            <i data-lucide="message-circle" class="w-5 h-5"></i>
-            Global Chat
+      <div class="flex items-center gap-3 flex-wrap justify-end">
+        <button id="account-button" class="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white border border-purple-200 shadow-sm">
+          <div id="account-avatar" class="w-7 h-7 rounded-full overflow-hidden bg-purple-100 flex items-center justify-center">
+            <i data-lucide="user" class="w-4 h-4 text-purple-400"></i>
           </div>
-          <span id="translating-badge" class="hidden text-xs font-semibold text-purple-500 bg-purple-100 px-3 py-1 rounded-full animate-pulse-fast">
-            Translating...
-          </span>
-        </div>
-        
-        <!-- Chat Messages Container -->
-        <div id="chat-container" class="flex-1 overflow-y-auto p-6 space-y-5 bg-gray-50/50 chat-scroll">
-          <!-- Messages injected here -->
-        </div>
+          <span id="account-name" class="text-xs font-bold text-purple-900">Create account</span>
+        </button>
 
-        <!-- Chat Input -->
-        <div class="p-4 bg-white border-t border-purple-50">
-          <form id="chat-form" class="flex gap-2">
-            <input
-              type="text"
-              id="chat-input"
-              placeholder="Type a message..."
-              class="flex-1 bg-purple-50 border border-purple-100 rounded-full px-6 py-3 text-purple-900 focus:outline-none focus:ring-2 focus:ring-orange-300 transition-all placeholder:text-purple-300"
-            />
-            <button 
-              type="submit"
-              id="chat-submit-btn"
-              disabled
-              class="bg-gradient-to-r from-yellow-400 to-orange-500 text-white rounded-full p-3 hover:shadow-lg hover:shadow-orange-200 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
-            >
-              <i data-lucide="send" class="w-5 h-5 ml-1"></i>
-            </button>
-          </form>
-        </div>
-      </section>
+        <label class="flex items-center gap-2 px-3 py-2 rounded-full bg-white border border-purple-200 shadow-sm">
+          <i data-lucide="languages" class="w-4 h-4 text-orange-500"></i>
+          <select id="lang-select" class="bg-transparent outline-none text-sm font-semibold text-purple-900">
+            <option value="English">English</option>
+            <option value="Deutsch">Deutsch</option>
+            <option value="Español">Español</option>
+            <option value="Français">Français</option>
+            <option value="Italiano">Italiano</option>
+            <option value="日本語">日本語</option>
+          </select>
+        </label>
+      </div>
+    </div>
+  </header>
 
-      <!-- Right Column: Blog Section -->
-      <section class="lg:col-span-5 flex flex-col gap-6 fade-in h-full overflow-y-auto chat-scroll pr-2" style="animation-delay: 0.2s">
-        
-        <div class="flex items-center justify-between mt-2">
-          <h2 class="text-2xl font-bold text-purple-900 flex items-center gap-2">
-            <i data-lucide="file-text" class="w-6 h-6 text-orange-500"></i>
-            Blog
-          </h2>
-          
-          <div id="admin-controls">
-            <button id="btn-show-admin" class="text-purple-400 hover:text-orange-500 transition-colors p-2" title="Admin Login">
-              <i data-lucide="lock" class="w-5 h-5"></i>
-            </button>
-            <span id="admin-badge" class="hidden flex items-center gap-1 text-xs font-bold text-green-500 bg-green-50 px-3 py-1 rounded-full">
-              <i data-lucide="check-circle-2" class="w-4 h-4"></i> Admin
-            </span>
-          </div>
-        </div>
+  <main class="max-w-6xl mx-auto px-4 py-6 sm:px-6 grid grid-cols-1 lg:grid-cols-12 gap-6 h-[calc(100vh-88px)] overflow-hidden">
+    <section class="lg:col-span-7 glass rounded-3xl overflow-hidden flex flex-col fade-in min-h-[320px]">
+      <div class="px-5 py-4 bg-gradient-to-r from-yellow-100 via-orange-100 to-purple-100 border-b border-purple-200 flex flex-wrap justify-between items-center gap-2">
+        <h2 class="font-bold text-purple-900 flex items-center gap-2"><i data-lucide="messages-square" class="w-5 h-5 text-orange-500"></i>Community Chat</h2>
+        <span id="language-badge" class="text-xs font-semibold text-purple-700 bg-white rounded-full px-3 py-1 border border-purple-200">Language: English</span>
+      </div>
 
-        <!-- Admin Login Modal -->
-        <form id="admin-login-form" class="hidden bg-white p-5 rounded-2xl shadow-lg border border-purple-100 flex gap-2">
-          <input 
-            type="password" 
-            id="admin-password"
-            placeholder="Admin Password"
-            class="flex-1 bg-purple-50 border border-purple-100 rounded-xl px-4 py-2 text-purple-900 focus:outline-none focus:ring-2 focus:ring-orange-300"
-          />
-          <button type="submit" class="bg-purple-600 text-white px-4 py-2 rounded-xl hover:bg-purple-700 transition-colors font-medium text-sm">
-            Login
+      <div id="chat-list" class="flex-1 p-4 sm:p-5 overflow-y-auto chat-scroll space-y-3 bg-white/70"></div>
+
+      <form id="chat-form" class="p-4 border-t border-purple-200 bg-white/80">
+        <label for="chat-input" class="text-xs font-semibold text-purple-700">Share a translation issue, nuance, or false friend:</label>
+        <div class="mt-2 flex gap-2">
+          <input id="chat-input" type="text" maxlength="350" placeholder="Example: The word 'actual' gets mistranslated in Spanish contexts..." class="input-base flex-1 text-sm text-purple-900 placeholder:text-purple-400" required />
+          <button class="rounded-2xl bg-gradient-to-r from-yellow-400 to-orange-500 text-white px-4 py-3 font-bold shadow-md hover:shadow-lg transition" type="submit">
+            <i data-lucide="send" class="w-4 h-4"></i>
           </button>
+        </div>
+        <p id="chat-error" class="mt-1 text-xs text-red-600 hidden-important">Please enter a message and create your account first.</p>
+      </form>
+    </section>
+
+    <section class="lg:col-span-5 flex flex-col gap-4 overflow-hidden fade-in" style="animation-delay: .15s;">
+      <div class="glass rounded-3xl p-5">
+        <div class="flex items-center justify-between gap-2 mb-3">
+          <h2 class="font-bold text-purple-900 flex items-center gap-2"><i data-lucide="file-text" class="w-5 h-5 text-orange-500"></i>Creator Blog</h2>
+          <button id="admin-toggle" class="text-purple-500 hover:text-orange-500 transition" title="Creator Login">
+            <i data-lucide="lock" class="w-5 h-5"></i>
+          </button>
+        </div>
+
+        <form id="admin-form" class="hidden-important space-y-2">
+          <input id="admin-password" type="password" placeholder="Creator password" class="input-base w-full text-sm bg-white" />
+          <p id="admin-error" class="text-xs text-red-600 hidden-important">Wrong password. Please try again.</p>
+          <button type="submit" class="w-full rounded-xl bg-purple-600 text-white py-2 text-sm font-semibold hover:bg-purple-700">Unlock blog editor</button>
         </form>
 
-        <!-- Admin Create Blog Form -->
-        <form id="create-blog-form" class="hidden bg-gradient-to-br from-white to-purple-50 p-6 rounded-3xl shadow-xl border border-purple-100 flex flex-col gap-4">
-          <h3 class="font-bold text-purple-900">Create New Post</h3>
-          <input 
-            type="text" 
-            id="blog-title"
-            required
-            placeholder="Post Title"
-            class="bg-white border border-purple-100 rounded-xl px-4 py-3 text-purple-900 focus:outline-none focus:ring-2 focus:ring-orange-300 font-semibold"
-          />
-          <textarea 
-            id="blog-content"
-            required
-            placeholder="Write something inspiring..."
-            rows="4"
-            class="bg-white border border-purple-100 rounded-xl px-4 py-3 text-purple-900 focus:outline-none focus:ring-2 focus:ring-orange-300 resize-none text-sm"
-          ></textarea>
-          <button type="submit" class="bg-gradient-to-r from-yellow-400 to-orange-500 text-white font-bold py-3 rounded-xl hover:shadow-lg hover:shadow-orange-200 transition-all flex justify-center items-center gap-2">
-            Publish Post <i data-lucide="chevron-right" class="w-5 h-5"></i>
-          </button>
+        <form id="blog-form" class="hidden-important mt-3 space-y-2">
+          <input id="blog-title" type="text" placeholder="Blog title" required class="input-base w-full text-sm bg-white" />
+          <textarea id="blog-content" rows="4" placeholder="Write a post for your community..." required class="input-base w-full text-sm bg-white resize-none"></textarea>
+          <p id="blog-error" class="text-xs text-red-600 hidden-important">Please fill all blog fields.</p>
+          <button type="submit" class="w-full rounded-xl bg-gradient-to-r from-yellow-400 to-orange-500 text-white py-2 text-sm font-bold shadow-sm">Publish post</button>
         </form>
+      </div>
 
-        <!-- Blog Feed -->
-        <div id="blog-container" class="flex flex-col gap-4 pb-8">
-          <!-- Blogs injected here -->
+      <div id="blog-list" class="flex-1 overflow-y-auto chat-scroll pr-1 space-y-3"></div>
+    </section>
+  </main>
+
+  <template id="chat-item-template">
+    <article class="bg-white border border-purple-100 rounded-2xl p-3 shadow-sm">
+      <div class="flex items-start justify-between gap-2 text-xs mb-2">
+        <div class="flex items-center gap-2">
+          <div class="w-8 h-8 rounded-full overflow-hidden bg-purple-100 flex items-center justify-center chat-avatar"></div>
+          <span class="font-semibold text-purple-800 chat-author"></span>
         </div>
+        <span class="text-purple-400 chat-time"></span>
+      </div>
+      <p class="text-sm text-zinc-700 chat-text"></p>
+      <p class="text-[11px] text-orange-600 mt-2 font-semibold chat-lang"></p>
+    </article>
+  </template>
 
-      </section>
-    </main>
-  </div>
+  <template id="blog-item-template">
+    <article class="glass rounded-2xl p-4">
+      <div class="flex justify-between items-start gap-2">
+        <div class="flex gap-2 items-center">
+          <div class="w-7 h-7 rounded-full overflow-hidden bg-purple-100 flex items-center justify-center blog-avatar"></div>
+          <h3 class="font-bold text-purple-900 blog-title"></h3>
+        </div>
+        <span class="text-[11px] font-semibold text-purple-500 blog-time"></span>
+      </div>
+      <p class="mt-2 text-sm text-zinc-700 whitespace-pre-wrap blog-content"></p>
+    </article>
+  </template>
 
-  <!-- Firebase Integration & App Logic -->
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
-    import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js";
-    import { getFirestore, collection, addDoc, onSnapshot, query, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
+  <script>
+    const CHAT_KEY = 'deine_sonnenstrahlen_chat_v1';
+    const BLOG_KEY = 'deine_sonnenstrahlen_blog_v1';
+    const PROFILE_KEY = 'deine_sonnenstrahlen_profile_v1';
+    const ADMIN_PASSWORD = 'Sonnenstrahlen-47-47053';
+    const TEN_MB = 10 * 1024 * 1024;
 
-    // --- UTILS: TOAST NOTIFICATIONS ---
-    const showToast = (msg) => {
-      const toast = document.getElementById('toast-modal');
-      document.getElementById('toast-msg').innerText = msg;
-      toast.style.opacity = '1';
-      toast.style.transform = 'translate(-50%, 10px)';
-      setTimeout(() => {
-        toast.style.opacity = '0';
-        toast.style.transform = 'translate(-50%, 0)';
-      }, 3000);
+    const state = {
+      currentLanguage: 'English',
+      adminUnlocked: false,
+      chat: JSON.parse(localStorage.getItem(CHAT_KEY) || '[]'),
+      blogs: JSON.parse(localStorage.getItem(BLOG_KEY) || '[]'),
+      profile: JSON.parse(localStorage.getItem(PROFILE_KEY) || 'null')
     };
 
-    // --- SETUP: FIREBASE ---
-    let firebaseConfig = {};
-    let appId = "default-sonnenstrahlen-app";
-    if (typeof __firebase_config !== 'undefined') {
-      firebaseConfig = JSON.parse(__firebase_config);
-      appId = typeof __app_id !== 'undefined' ? __app_id : appId;
+    function saveState() {
+      localStorage.setItem(CHAT_KEY, JSON.stringify(state.chat));
+      localStorage.setItem(BLOG_KEY, JSON.stringify(state.blogs));
+      localStorage.setItem(PROFILE_KEY, JSON.stringify(state.profile));
     }
 
-    const app = initializeApp(firebaseConfig);
-    const auth = getAuth(app);
-    const db = getFirestore(app);
+    function formatTime(iso) {
+      return new Date(iso).toLocaleString();
+    }
 
-    // --- STATE MANAGEMENT ---
-    const state = {
-      user: null,
-      profile: null,
-      messages: [],
-      blogs: [],
-      profiles: {}, 
-      userLang: 'de',
-      isAdmin: false,
-      translationCache: {} 
-    };
-
-    // --- TRANSLATION API ---
-    const translateText = async (text, targetLang) => {
-      const apiKey = ""; 
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
-      const prompt = `You are a seamless translation engine. Translate to "${targetLang}". Respond ONLY with text. Text: ${text}`;
-      const payload = { contents: [{ parts: [{ text: prompt }] }] };
-
-      let retries = 3;
-      while (retries > 0) {
-        try {
-          const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-          const data = await response.json();
-          return data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || text;
-        } catch (e) {
-          retries--;
-          if (retries === 0) return text;
-          await new Promise(r => setTimeout(r, 1000));
-        }
+    function showToast(message, type = 'normal') {
+      const toast = document.getElementById('toast');
+      toast.textContent = message;
+      toast.className = 'fixed top-4 left-1/2 -translate-x-1/2 z-[70] px-5 py-2.5 rounded-full text-sm font-semibold shadow-xl border opacity-100 transition-all duration-300';
+      if (type === 'error') {
+        toast.classList.add('bg-red-50', 'text-red-700', 'border-red-200');
+      } else {
+        toast.classList.add('bg-white', 'text-purple-900', 'border-purple-200');
       }
-      return text;
-    };
+      setTimeout(() => {
+        toast.style.opacity = '0';
+      }, 2200);
+      setTimeout(() => {
+        toast.style.opacity = '';
+        toast.classList.add('opacity-0');
+      }, 2600);
+    }
 
-    // --- LOADING SCREEN ANIMATION ---
-    const initLoadingScreen = () => {
-      const deviceStages = [
-        { screen: { w: 60, h: 120, x: 120, y: 90, rx: 12 }, stand: { o: 0, w: 40, h: 4, x: 130, y: 220 }, neck: { o: 0, w: 8, h: 15, x: 146, y: 210 }, base: { o: 0, w: 60, h: 4, x: 120, y: 215 }, tower: { o: 0, w: 30, h: 70, x: 200, y: 140 } },
-        { screen: { w: 140, h: 180, x: 80, y: 60, rx: 16 }, stand: { o: 0, w: 40, h: 4, x: 130, y: 250 }, neck: { o: 0, w: 8, h: 15, x: 146, y: 240 }, base: { o: 0, w: 140, h: 4, x: 80, y: 245 }, tower: { o: 0, w: 30, h: 70, x: 240, y: 170 } },
-        { screen: { w: 260, h: 150, x: 20, y: 50, rx: 6 }, stand: { o: 1, w: 100, h: 6, x: 100, y: 220 }, neck: { o: 1, w: 16, h: 25, x: 142, y: 198 }, base: { o: 0, w: 260, h: 6, x: 20, y: 230 }, tower: { o: 0, w: 30, h: 70, x: 290, y: 130 } },
-        { screen: { w: 180, h: 110, x: 60, y: 80, rx: 8 }, stand: { o: 0, w: 80, h: 6, x: 110, y: 200 }, neck: { o: 0, w: 12, h: 20, x: 144, y: 185 }, base: { o: 1, w: 220, h: 12, x: 40, y: 190 }, tower: { o: 0, w: 30, h: 70, x: 270, y: 120 } },
-        { screen: { w: 150, h: 110, x: 40, y: 70, rx: 6 }, stand: { o: 1, w: 60, h: 6, x: 85, y: 200 }, neck: { o: 1, w: 12, h: 25, x: 109, y: 178 }, base: { o: 0, w: 150, h: 12, x: 40, y: 210 }, tower: { o: 1, w: 50, h: 130, x: 210, y: 70 } }
+    function avatarHtml(profile, sizeClass = 'w-full h-full') {
+      if (!profile || !profile.mediaData) return '<i data-lucide="user" class="w-4 h-4 text-purple-400"></i>';
+      if (profile.mediaType === 'video') {
+        return `<video src="${profile.mediaData}" class="${sizeClass} object-cover" autoplay loop muted playsinline></video>`;
+      }
+      return `<img src="${profile.mediaData}" alt="avatar" class="${sizeClass} object-cover" />`;
+    }
+
+    function renderHeaderAccount() {
+      const name = document.getElementById('account-name');
+      const avatar = document.getElementById('account-avatar');
+      if (!state.profile) {
+        name.textContent = 'Create account';
+        avatar.innerHTML = '<i data-lucide="user" class="w-4 h-4 text-purple-400"></i>';
+      } else {
+        name.textContent = state.profile.name;
+        avatar.innerHTML = avatarHtml(state.profile);
+      }
+      lucide.createIcons();
+    }
+
+    function renderChat() {
+      const list = document.getElementById('chat-list');
+      const template = document.getElementById('chat-item-template');
+      list.innerHTML = '';
+
+      if (!state.chat.length) {
+        list.innerHTML = '<p class="text-sm text-purple-600">No posts yet. Start the first conversation about a translation issue.</p>';
+        return;
+      }
+
+      state.chat.slice().reverse().forEach((item) => {
+        const node = template.content.cloneNode(true);
+        node.querySelector('.chat-time').textContent = formatTime(item.createdAt);
+        node.querySelector('.chat-text').textContent = item.text;
+        node.querySelector('.chat-lang').textContent = `Posted in ${item.language}`;
+        node.querySelector('.chat-author').textContent = item.authorName || 'Community member';
+        node.querySelector('.chat-avatar').innerHTML = avatarHtml(item.profileSnapshot);
+        list.appendChild(node);
+      });
+      lucide.createIcons();
+    }
+
+    function renderBlogs() {
+      const list = document.getElementById('blog-list');
+      const template = document.getElementById('blog-item-template');
+      list.innerHTML = '';
+
+      if (!state.blogs.length) {
+        list.innerHTML = '<p class="text-sm text-purple-600 px-1">No blog posts yet.</p>';
+        return;
+      }
+
+      state.blogs.slice().reverse().forEach((post) => {
+        const node = template.content.cloneNode(true);
+        node.querySelector('.blog-title').textContent = post.title;
+        node.querySelector('.blog-time').textContent = formatTime(post.createdAt);
+        node.querySelector('.blog-content').textContent = post.content;
+        node.querySelector('.blog-avatar').innerHTML = avatarHtml(post.profileSnapshot);
+        list.appendChild(node);
+      });
+      lucide.createIcons();
+    }
+
+    function setLanguage(lang) {
+      state.currentLanguage = lang;
+      document.getElementById('language-badge').textContent = `Language: ${lang}`;
+    }
+
+    function setRect(el, [x, y, width, height, rx]) {
+      el.setAttribute('x', x);
+      el.setAttribute('y', y);
+      el.setAttribute('width', width);
+      el.setAttribute('height', height);
+      if (rx != null) el.setAttribute('rx', rx);
+    }
+
+    function initLoadingAnimation() {
+      const stages = [
+        {
+          screen: [112, 68, 76, 166, 22], cutout: [118, 74, 64, 148, 17], stand: [0, 0, 0, 0], neck: [0, 0, 0, 0], base: [0, 0, 0, 0], tower: [0, 0, 0, 0],
+          camera: [150, 84, 3], home: [145, 212, 10, 4, 2], side1: [188, 100, 3, 18, 2], side2: [188, 126, 3, 12, 2]
+        },
+        {
+          screen: [84, 52, 132, 194, 18], cutout: [90, 58, 120, 180, 13], stand: [0, 0, 0, 0], neck: [0, 0, 0, 0], base: [0, 0, 0, 0], tower: [0, 0, 0, 0],
+          camera: [150, 72, 3], home: [145, 226, 10, 4, 2], side1: [216, 110, 3, 24, 2], side2: [216, 140, 3, 14, 2]
+        },
+        {
+          screen: [32, 52, 236, 140, 10], cutout: [38, 58, 224, 126, 8], stand: [112, 208, 76, 9], neck: [146, 191, 8, 17], base: [86, 219, 128, 8], tower: [0, 0, 0, 0],
+          camera: [150, 66, 3], home: [0, 0, 0, 0, 0], side1: [0, 0, 0, 0, 0], side2: [0, 0, 0, 0, 0]
+        },
+        {
+          screen: [52, 70, 196, 118, 9], cutout: [58, 76, 184, 104, 7], stand: [108, 200, 84, 8], neck: [146, 184, 8, 16], base: [60, 209, 180, 11], tower: [0, 0, 0, 0],
+          camera: [150, 82, 2.5], home: [0, 0, 0, 0, 0], side1: [0, 0, 0, 0, 0], side2: [0, 0, 0, 0, 0]
+        },
+        {
+          screen: [46, 58, 166, 106, 8], cutout: [52, 64, 154, 94, 6], stand: [102, 184, 70, 8], neck: [133, 168, 8, 16], base: [48, 195, 164, 10], tower: [220, 66, 42, 136],
+          camera: [128, 72, 2], home: [0, 0, 0, 0, 0], side1: [213, 108, 3, 22, 2], side2: [213, 138, 3, 14, 2]
+        }
       ];
 
-      let stage = 0;
-      const setSVG = (cur) => {
-        const els = { base: document.getElementById('dev-base'), tower: document.getElementById('dev-tower'), neck: document.getElementById('dev-neck'), stand: document.getElementById('dev-stand'), screen: document.getElementById('dev-screen'), cutout: document.getElementById('dev-cutout') };
-        els.base.setAttribute('x', cur.base.x); els.base.setAttribute('y', cur.base.y); els.base.setAttribute('width', cur.base.w); els.base.setAttribute('height', cur.base.h); els.base.setAttribute('opacity', cur.base.o);
-        els.tower.setAttribute('x', cur.tower.x); els.tower.setAttribute('y', cur.tower.y); els.tower.setAttribute('width', cur.tower.w); els.tower.setAttribute('height', cur.tower.h); els.tower.setAttribute('opacity', cur.tower.o);
-        els.neck.setAttribute('x', cur.neck.x); els.neck.setAttribute('y', cur.neck.y); els.neck.setAttribute('width', cur.neck.w); els.neck.setAttribute('height', cur.neck.h); els.neck.setAttribute('opacity', cur.neck.o);
-        els.stand.setAttribute('x', cur.stand.x); els.stand.setAttribute('y', cur.stand.y); els.stand.setAttribute('width', cur.stand.w); els.stand.setAttribute('height', cur.stand.h); els.stand.setAttribute('opacity', cur.stand.o);
-        els.screen.setAttribute('x', cur.screen.x); els.screen.setAttribute('y', cur.screen.y); els.screen.setAttribute('width', cur.screen.w); els.screen.setAttribute('height', cur.screen.h); els.screen.setAttribute('rx', cur.screen.rx);
-        els.cutout.setAttribute('x', cur.screen.x + 4); els.cutout.setAttribute('y', cur.screen.y + 4); els.cutout.setAttribute('width', Math.max(0, cur.screen.w - 8)); els.cutout.setAttribute('height', Math.max(0, cur.screen.h - (stage <= 1 ? 16 : 8))); els.cutout.setAttribute('rx', cur.screen.rx > 4 ? cur.screen.rx - 2 : 2);
+      const nodes = {
+        screen: document.getElementById('shape-screen'),
+        cutout: document.getElementById('shape-cutout'),
+        stand: document.getElementById('shape-stand'),
+        neck: document.getElementById('shape-neck'),
+        base: document.getElementById('shape-base'),
+        tower: document.getElementById('shape-tower'),
+        camera: document.getElementById('shape-camera'),
+        home: document.getElementById('shape-home-btn'),
+        side1: document.getElementById('shape-side-btn-1'),
+        side2: document.getElementById('shape-side-btn-2')
       };
 
-      setSVG(deviceStages[0]);
-      const interval = setInterval(() => {
-        stage++;
-        if (stage > 5) {
-          clearInterval(interval);
-          document.getElementById('loading-screen').style.opacity = '0';
+      let index = 0;
+      let loops = 0;
+      const applyStage = () => {
+        const stage = stages[index];
+        setRect(nodes.screen, stage.screen);
+        setRect(nodes.cutout, stage.cutout);
+        setRect(nodes.stand, stage.stand);
+        setRect(nodes.neck, stage.neck);
+        setRect(nodes.base, stage.base);
+        setRect(nodes.tower, stage.tower);
+        nodes.camera.setAttribute('cx', stage.camera[0]);
+        nodes.camera.setAttribute('cy', stage.camera[1]);
+        nodes.camera.setAttribute('r', stage.camera[2]);
+        setRect(nodes.home, stage.home);
+        setRect(nodes.side1, stage.side1);
+        setRect(nodes.side2, stage.side2);
+
+        index = (index + 1) % stages.length;
+        if (index === 0) loops += 1;
+
+        if (loops >= 2) {
+          clearInterval(timer);
+          const overlay = document.getElementById('loading-screen');
+          overlay.style.opacity = '0';
           setTimeout(() => {
-            document.getElementById('loading-screen').classList.add('hidden');
+            overlay.classList.add('hidden-important');
             document.body.classList.remove('overflow-hidden');
-            checkAuthState(); 
-            setupGlobalListeners(); // Load data immediately regardless of login
           }, 700);
-        } else {
-          setSVG(deviceStages[stage === 5 ? 0 : stage]);
         }
-      }, 1000);
-    };
+      };
 
-    // --- FORMAT DATE/TIME ---
-    const formatTime = (ts) => {
-      if (!ts) return '';
-      const date = new Date(ts);
-      return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + ' · ' + date.toLocaleDateString();
-    };
+      applyStage();
+      const timer = setInterval(applyStage, 900);
+    }
 
-    // --- RENDER FUNCTIONS ---
-    const renderAvatar = (type, data, classes) => {
-      if (!data) return `<div class="${classes} bg-purple-100 flex items-center justify-center"><i data-lucide="user" class="w-1/2 h-1/2 text-purple-300"></i></div>`;
-      if (type === 'video') return `<video src="${data}" autoplay loop muted playsinline class="${classes} object-cover"></video>`;
-      return `<img src="${data}" class="${classes} object-cover" />`;
-    };
+    function clearFieldError(inputEl, errorEl) {
+      inputEl.classList.remove('field-error');
+      if (errorEl) errorEl.classList.add('hidden-important');
+    }
 
-    const updateHeaderProfile = () => {
-      const area = document.getElementById('user-display-area');
-      const nameEl = document.getElementById('header-username');
-      const avatarContainer = document.getElementById('header-avatar-container');
+    function setupEvents() {
+      const accountModal = document.getElementById('account-modal');
+      const mediaInput = document.getElementById('media-input');
+      const mediaImage = document.getElementById('media-image-preview');
+      const mediaVideo = document.getElementById('media-video-preview');
+      const mediaIcon = document.getElementById('media-icon');
 
-      if (state.profile) {
-        nameEl.innerText = state.profile.name;
-        avatarContainer.innerHTML = renderAvatar(state.profile.avatarType, state.profile.avatarData, "w-full h-full");
-      } else {
-        nameEl.innerText = "Sign In";
-        avatarContainer.innerHTML = `<i data-lucide="user" class="w-4 h-4 text-purple-300"></i>`;
-      }
-      lucide.createIcons();
-    };
+      let pendingMediaType = state.profile?.mediaType || null;
+      let pendingMediaData = state.profile?.mediaData || null;
 
-    const renderChat = async () => {
-      const container = document.getElementById('chat-container');
-      const badge = document.getElementById('translating-badge');
-      let html = '';
-      let needsTranslation = false;
+      document.getElementById('account-button').addEventListener('click', () => {
+        accountModal.classList.remove('hidden-important');
+      });
 
-      for (const msg of state.messages) {
-        const isMe = msg.uid === state.user?.uid;
-        let displayText = msg.text;
-        
-        if (msg.originalLang !== state.userLang) {
-          if (!state.translationCache[msg.id]) state.translationCache[msg.id] = {};
-          if (state.translationCache[msg.id][state.userLang]) displayText = state.translationCache[msg.id][state.userLang];
-          else needsTranslation = true;
+      document.getElementById('close-account').addEventListener('click', () => {
+        accountModal.classList.add('hidden-important');
+      });
+
+      document.getElementById('media-trigger').addEventListener('click', () => mediaInput.click());
+
+      document.getElementById('display-name').addEventListener('input', (event) => {
+        clearFieldError(event.target, document.getElementById('display-name-error'));
+      });
+
+      mediaInput.addEventListener('change', (event) => {
+        const file = event.target.files[0];
+        const mediaError = document.getElementById('media-error');
+        mediaError.classList.add('hidden-important');
+
+        if (!file) return;
+        if (file.size > TEN_MB) {
+          mediaError.textContent = 'File is too large. Max size is 10MB.';
+          mediaError.classList.remove('hidden-important');
+          showToast('Media must be 10MB or less.', 'error');
+          mediaInput.value = '';
+          return;
         }
 
-        const authorProfile = state.profiles[msg.uid] || { name: 'Unknown', avatarType: null, avatarData: null };
-        const avatarHtml = renderAvatar(authorProfile.avatarType, authorProfile.avatarData, "w-8 h-8 rounded-full shadow-sm");
-        
-        html += `
-          <div class="flex gap-3 ${isMe ? 'flex-row-reverse' : 'flex-row'} items-end group">
-            ${avatarHtml}
-            <div class="flex flex-col ${isMe ? 'items-end' : 'items-start'} max-w-[75%]">
-              <span class="text-[10px] font-bold text-purple-400 mb-1 px-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                ${authorProfile.name} • ${formatTime(msg.timestamp)}
-              </span>
-              <div class="rounded-2xl p-3.5 shadow-sm ${isMe ? 'bg-gradient-to-br from-yellow-400 to-orange-400 text-white rounded-br-sm' : 'bg-white border border-purple-100 text-purple-900 rounded-bl-sm'}">
-                <p class="text-[15px] leading-relaxed break-words">${displayText}</p>
-              </div>
-            </div>
-          </div>
-        `;
-      }
-      container.innerHTML = html;
-      lucide.createIcons();
-      container.scrollTop = container.scrollHeight;
-
-      if (needsTranslation) {
-        badge.classList.remove('hidden');
-        let updated = false;
-        for (const msg of state.messages) {
-          if (msg.originalLang !== state.userLang && !state.translationCache[msg.id]?.[state.userLang]) {
-            state.translationCache[msg.id] = state.translationCache[msg.id] || {};
-            state.translationCache[msg.id][state.userLang] = await translateText(msg.text, state.userLang);
-            updated = true;
-          }
-        }
-        badge.classList.add('hidden');
-        if (updated) renderChat();
-      }
-    };
-
-    const renderBlogs = () => {
-      const container = document.getElementById('blog-container');
-      let html = '';
-      for (const blog of state.blogs) {
-        const authorProfile = state.profiles[blog.uid] || { name: 'Admin', avatarType: null, avatarData: null };
-        const avatarHtml = renderAvatar(authorProfile.avatarType, authorProfile.avatarData, "w-6 h-6 rounded-full");
-        html += `
-          <article class="bg-white p-6 rounded-3xl shadow-md border-l-4 border-orange-400 border-t border-r border-b border-t-purple-50 group">
-            <div class="flex justify-between items-start mb-3">
-              <h3 class="text-lg font-bold text-purple-900">${blog.title}</h3>
-              <span class="text-[10px] font-bold text-purple-400 bg-purple-50 px-2 py-1 rounded-md uppercase tracking-wider">
-                ${formatTime(blog.timestamp)}
-              </span>
-            </div>
-            <p class="text-purple-700/90 leading-relaxed text-sm whitespace-pre-wrap">${blog.content}</p>
-            <div class="mt-4 flex items-center gap-2 text-xs font-semibold text-purple-500 border-t border-purple-50 pt-3">
-              ${avatarHtml} <span class="text-purple-900">${authorProfile.name}</span>
-            </div>
-          </article>
-        `;
-      }
-      container.innerHTML = html;
-      lucide.createIcons();
-    };
-
-    // --- DB SYNC ---
-    const setupGlobalListeners = () => {
-      const pProfiles = collection(db, 'artifacts', appId, 'public', 'data', 'profiles');
-      const pMessages = collection(db, 'artifacts', appId, 'public', 'data', 'messages');
-      const pBlogs = collection(db, 'artifacts', appId, 'public', 'data', 'blogs');
-
-      onSnapshot(pProfiles, (snapshot) => {
-        snapshot.forEach(doc => { state.profiles[doc.id] = doc.data(); });
-        renderChat(); renderBlogs();
-        if (state.user && state.profiles[state.user.uid]) {
-            state.profile = state.profiles[state.user.uid];
-            updateHeaderProfile();
-        }
-      });
-      onSnapshot(pMessages, (snapshot) => {
-        let msgs = []; snapshot.forEach(doc => msgs.push({ id: doc.id, ...doc.data() }));
-        msgs.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
-        state.messages = msgs; renderChat();
-      });
-      onSnapshot(pBlogs, (snapshot) => {
-        let blgs = []; snapshot.forEach(doc => blgs.push({ id: doc.id, ...doc.data() }));
-        blgs.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
-        state.blogs = blgs; renderBlogs();
-      });
-    };
-
-    // --- AUTH FLOW ---
-    const triggerLogin = () => {
-      document.getElementById('auth-screen').classList.remove('hidden');
-    };
-
-    const handleGoogleLogin = async () => {
-      try {
-        const provider = new GoogleAuthProvider();
-        await signInWithPopup(auth, provider);
-        document.getElementById('auth-screen').classList.add('hidden');
-      } catch (err) {
-        showToast("Auth failed. Please try again.");
-      }
-    };
-
-    const checkAuthState = () => {
-      onAuthStateChanged(auth, async (user) => {
-        if (user) {
-          state.user = user;
-          const profileDoc = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'profiles', user.uid));
-          if (profileDoc.exists()) {
-            state.profile = profileDoc.data();
-            updateHeaderProfile();
-          } else {
-            document.getElementById('profile-setup-screen').classList.remove('hidden');
-            document.getElementById('profile-name-input').value = user.displayName || '';
-          }
-        } else {
-          state.user = null; state.profile = null;
-          updateHeaderProfile();
-        }
-      });
-    };
-
-    // --- EVENT LISTENERS ---
-    document.addEventListener("DOMContentLoaded", () => {
-      lucide.createIcons();
-      initLoadingScreen();
-
-      document.getElementById('btn-close-auth').addEventListener('click', () => {
-        document.getElementById('auth-screen').classList.add('hidden');
-      });
-
-      document.getElementById('user-display-area').addEventListener('click', () => {
-        if (!state.user) triggerLogin();
-      });
-
-      document.getElementById('btn-google-login').addEventListener('click', handleGoogleLogin);
-
-      // Avatar Setup
-      let pendingAvatarType = null, pendingAvatarData = null;
-      document.getElementById('avatar-preview-container').addEventListener('click', () => document.getElementById('avatar-upload').click());
-      document.getElementById('avatar-upload').addEventListener('change', (e) => {
-        const file = e.target.files[0];
-        if (!file || file.size > 800 * 1024) return showToast("File too large (>800KB)");
         const reader = new FileReader();
-        reader.onload = (ev) => {
-          pendingAvatarData = ev.target.result;
-          pendingAvatarType = file.type.startsWith('video/') ? 'video' : 'image';
-          const imgP = document.getElementById('avatar-img-preview'), vidP = document.getElementById('avatar-video-preview'), icon = document.querySelector('#avatar-preview-container i');
-          icon.classList.add('hidden');
-          if (pendingAvatarType === 'video') { imgP.classList.add('hidden'); vidP.src = pendingAvatarData; vidP.classList.remove('hidden'); }
-          else { vidP.classList.add('hidden'); imgP.src = pendingAvatarData; imgP.classList.remove('hidden'); }
+        reader.onload = (e) => {
+          pendingMediaData = e.target.result;
+          pendingMediaType = file.type.startsWith('video/') ? 'video' : 'image';
+
+          mediaIcon.classList.add('hidden-important');
+          if (pendingMediaType === 'video') {
+            mediaImage.classList.add('hidden-important');
+            mediaVideo.classList.remove('hidden-important');
+            mediaVideo.src = pendingMediaData;
+          } else {
+            mediaVideo.classList.add('hidden-important');
+            mediaImage.classList.remove('hidden-important');
+            mediaImage.src = pendingMediaData;
+          }
         };
         reader.readAsDataURL(file);
       });
 
-      document.getElementById('profile-form').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const name = document.getElementById('profile-name-input').value.trim();
-        const profileData = { name, avatarType: pendingAvatarType, avatarData: pendingAvatarData, updatedAt: Date.now() };
-        try {
-          await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'profiles', state.user.uid), profileData);
-          state.profile = profileData;
-          document.getElementById('profile-setup-screen').classList.add('hidden');
-          updateHeaderProfile();
-        } catch (err) { showToast("Failed to save profile."); }
+      document.getElementById('account-form').addEventListener('submit', (event) => {
+        event.preventDefault();
+        const nameInput = document.getElementById('display-name');
+        const nameError = document.getElementById('display-name-error');
+        const mediaError = document.getElementById('media-error');
+        const name = nameInput.value.trim();
+        let hasError = false;
+
+        if (!name) {
+          nameInput.classList.add('field-error');
+          nameError.classList.remove('hidden-important');
+          hasError = true;
+        }
+
+        if (!pendingMediaData) {
+          mediaError.textContent = 'Please upload an image or video (max 10MB).';
+          mediaError.classList.remove('hidden-important');
+          hasError = true;
+        }
+
+        if (hasError) {
+          showToast('Please fix the highlighted account fields.', 'error');
+          return;
+        }
+
+        state.profile = { name, mediaType: pendingMediaType, mediaData: pendingMediaData };
+        saveState();
+        renderHeaderAccount();
+        accountModal.classList.add('hidden-important');
+        showToast('Account saved successfully.');
       });
 
-      document.getElementById('lang-select').addEventListener('change', (e) => { state.userLang = e.target.value; renderChat(); });
-
-      const chatInput = document.getElementById('chat-input');
-      const chatBtn = document.getElementById('chat-submit-btn');
-      chatInput.addEventListener('input', (e) => chatBtn.disabled = e.target.value.trim().length === 0);
-
-      document.getElementById('chat-form').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        if (!state.user) return triggerLogin();
-        const text = chatInput.value.trim();
-        chatInput.value = ''; chatBtn.disabled = true;
-        try {
-          await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'messages'), {
-            uid: state.user.uid, text: text, originalLang: state.userLang, timestamp: Date.now()
-          });
-        } catch (err) { showToast("Failed to send."); }
+      document.getElementById('lang-select').addEventListener('change', (event) => {
+        setLanguage(event.target.value);
       });
 
-      document.getElementById('btn-show-admin').addEventListener('click', () => document.getElementById('admin-login-form').classList.toggle('hidden'));
-      document.getElementById('admin-login-form').addEventListener('submit', (e) => {
-        e.preventDefault();
-        if (document.getElementById('admin-password').value === "Sonnenstrahlen-47-47053") {
-          state.isAdmin = true;
-          document.getElementById('admin-login-form').classList.add('hidden');
-          document.getElementById('admin-badge').classList.remove('hidden');
-          document.getElementById('create-blog-form').classList.remove('hidden');
-        } else showToast("Incorrect password");
+      document.getElementById('chat-form').addEventListener('submit', (event) => {
+        event.preventDefault();
+        const input = document.getElementById('chat-input');
+        const error = document.getElementById('chat-error');
+        clearFieldError(input, error);
+        const text = input.value.trim();
+
+        if (!state.profile || !text) {
+          input.classList.add('field-error');
+          error.classList.remove('hidden-important');
+          error.textContent = 'Please enter a message and create your account first.';
+          showToast('Account and message are required to post.', 'error');
+          return;
+        }
+
+        state.chat.push({
+          text,
+          language: state.currentLanguage,
+          createdAt: new Date().toISOString(),
+          authorName: state.profile.name,
+          profileSnapshot: state.profile
+        });
+
+        input.value = '';
+        saveState();
+        renderChat();
       });
 
-      document.getElementById('create-blog-form').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        if (!state.isAdmin || !state.user) return;
-        const title = document.getElementById('blog-title').value, content = document.getElementById('blog-content').value;
-        try {
-          await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'blogs'), { uid: state.user.uid, title, content, timestamp: Date.now() });
-          document.getElementById('blog-title').value = ''; document.getElementById('blog-content').value = '';
-        } catch (err) { showToast("Failed to post."); }
+      document.getElementById('admin-toggle').addEventListener('click', () => {
+        document.getElementById('admin-form').classList.toggle('hidden-important');
       });
+
+      document.getElementById('admin-form').addEventListener('submit', (event) => {
+        event.preventDefault();
+        const input = document.getElementById('admin-password');
+        const error = document.getElementById('admin-error');
+        clearFieldError(input, error);
+
+        if (input.value !== ADMIN_PASSWORD) {
+          input.classList.add('field-error');
+          error.classList.remove('hidden-important');
+          showToast('Incorrect creator password.', 'error');
+          return;
+        }
+
+        state.adminUnlocked = true;
+        input.value = '';
+        document.getElementById('admin-form').classList.add('hidden-important');
+        document.getElementById('blog-form').classList.remove('hidden-important');
+        showToast('Blog editor unlocked.');
+      });
+
+      document.getElementById('blog-form').addEventListener('submit', (event) => {
+        event.preventDefault();
+        const titleInput = document.getElementById('blog-title');
+        const contentInput = document.getElementById('blog-content');
+        const error = document.getElementById('blog-error');
+        clearFieldError(titleInput, error);
+        clearFieldError(contentInput, error);
+
+        const title = titleInput.value.trim();
+        const content = contentInput.value.trim();
+
+        if (!state.adminUnlocked || !title || !content) {
+          if (!title) titleInput.classList.add('field-error');
+          if (!content) contentInput.classList.add('field-error');
+          error.classList.remove('hidden-important');
+          showToast('Please fill all blog fields.', 'error');
+          return;
+        }
+
+        state.blogs.push({
+          title,
+          content,
+          createdAt: new Date().toISOString(),
+          profileSnapshot: state.profile || null
+        });
+
+        titleInput.value = '';
+        contentInput.value = '';
+        saveState();
+        renderBlogs();
+        showToast('Blog post published.');
+      });
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      lucide.createIcons();
+      initLoadingAnimation();
+      setLanguage(state.currentLanguage);
+      renderHeaderAccount();
+      renderChat();
+      renderBlogs();
+      setupEvents();
     });
   </script>
 </body>
