@@ -1,1039 +1,855 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Deine Sonnenstrahlen</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700&family=Roboto:wght@300;400;700&display=swap" rel="stylesheet">
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, doc, setDoc, getDoc, onSnapshot, addDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+import React, { useState, useEffect, useRef } from 'react';
+import { initializeApp } from 'firebase/app';
+import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from 'firebase/auth';
+import { getFirestore, collection, addDoc, onSnapshot, doc, setDoc, getDoc } from 'firebase/firestore';
+import { 
+  MessageCircle, User, FileText, ShoppingBag, Settings, 
+  Send, Image as ImageIcon, LogIn, Lock, Music, Moon, Sun, 
+  Globe, ShieldCheck
+} from 'lucide-react';
 
-        // Firebase Initialization
-        let auth, db, appId, userId;
-        const initFirebase = async () => {
-            try {
-                const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
-                    // Fallback mock config for local testing if env vars missing
-                    apiKey: "mock-key", projectId: "mock-project"
-                };
-                appId = typeof __app_id !== 'undefined' ? __app_id : 'deine-sonnenstrahlen-app';
-                const app = initializeApp(firebaseConfig);
-                auth = getAuth(app);
-                db = getFirestore(app);
+// --- INITIALIZATION & SECURITY ---
+let firebaseConfig = {};
+try {
+  if (typeof __firebase_config !== 'undefined' && __firebase_config) {
+    firebaseConfig = typeof __firebase_config === 'string' ? JSON.parse(__firebase_config) : __firebase_config;
+  }
+} catch (e) {
+  console.error("Firebase config parse error:", e);
+}
 
-                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                    await signInWithCustomToken(auth, __initial_auth_token);
-                } else {
-                    await signInAnonymously(auth);
-                }
-            } catch (e) {
-                console.error("Firebase init failed:", e);
-                // Fallback to local storage mode if DB fails entirely
-                window.localMode = true; 
-            }
-        };
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+const appId = typeof __app_id !== 'undefined' ? __app_id : 'deine-sonnenstrahlen-app';
 
-        window.initFirebase = initFirebase;
-        window.getAuth = () => auth;
-        window.getDb = () => db;
-        window.getAppId = () => appId;
-    </script>
-    <style>
-        /* CSS Variables for Dynamic Themes */
-        :root {
-            --c-1: #FFD700; /* Gold */
-            --c-2: #FFA500; /* Orange */
-            --c-3: #C3B1E1; /* Pastel Purple */
-            --c-4: #FFFFFF; /* White */
-            --bg-overlay: rgba(255, 255, 255, 0.4);
-            --glass-bg: rgba(255, 255, 255, 0.25);
-            --glass-border: rgba(255, 255, 255, 0.4);
-            --text-color: #333333;
-            --text-muted: #666666;
-            --shadow-glow: rgba(255, 215, 0, 0.5);
-            --chat-font: 'Roboto', sans-serif;
-        }
+// Basic XSS Firewall
+const firewallSanitize = (str) => {
+  if (!str || typeof str !== 'string') return '';
+  return str.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+            .replace(/on\w+="[^"]*"/g, '')
+            .replace(/javascript:/gi, '');
+};
 
-        /* Dark Mode overrides */
-        .dark-mode {
-            --bg-overlay: rgba(10, 10, 10, 0.7);
-            --glass-bg: rgba(0, 0, 0, 0.4);
-            --glass-border: rgba(255, 255, 255, 0.1);
-            --text-color: #f0f0f0;
-            --text-muted: #aaaaaa;
-        }
+// Image processing to stay within Firestore limits (simulating large uploads)
+const processImageFile = (file) => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = error => reject(error);
+  });
+};
 
-        /* Theme Classes */
-        .theme-base { /* Chat */
-            --c-1: #FFD700; --c-2: #FFA500; --c-3: #C3B1E1; --c-4: #FFFFFF;
-        }
-        .theme-profile {
-            --c-1: #FFD700; --c-2: #FFA500; --c-3: #AEC6CF; /* Pastel Blue */ --c-4: #FFFFFF;
-            --shadow-glow: rgba(174, 198, 207, 0.5);
-        }
-        .theme-blog {
-            --c-1: #FFD700; --c-2: #FFA500; --c-3: #FFB3BA; /* Pastel Red */ --c-4: #FFFFFF;
-            --shadow-glow: rgba(255, 179, 186, 0.5);
-        }
-        .theme-product {
-            --c-1: #B2D8B2; /* Pastel Green */ --c-2: #006400; /* Dark Green */ --c-3: #FFD700; /* Gold */ --c-4: #FFFFFF;
-            --shadow-glow: rgba(0, 100, 0, 0.5);
-        }
-        .theme-settings {
-            --c-1: #FFD700; --c-2: #FF4500; /* Red */ --c-3: #C3B1E1; --c-4: #FFFFFF;
-            --shadow-glow: rgba(255, 69, 0, 0.5);
-        }
+// --- TRANSLATIONS ---
+const dict = {
+  en: {
+    login: "Log in using Email or Key", email: "Email or Key", enter: "Enter",
+    cookies: "Cookie Preferences", acceptAll: "Accept All", acceptNec: "Necessary Only",
+    chat: "Chat", profile: "Profile", blogs: "Blogs", products: "Products", settings: "Settings",
+    typeMsg: "Type a message...", send: "Send", passwordReq: "Admin Password Required",
+    unlock: "Unlock", newBlog: "New Blog", title: "Title", subTitle: "Subtitle", content: "Content",
+    color: "Color", font: "Font", save: "Save", addProduct: "Add Product", price: "Price"
+  },
+  de: {
+    login: "Mit E-Mail oder Schlüssel einloggen", email: "E-Mail oder Schlüssel", enter: "Eintreten",
+    cookies: "Cookie-Einstellungen", acceptAll: "Alle akzeptieren", acceptNec: "Nur Notwendige",
+    chat: "Chat", profile: "Profil", blogs: "Blogs", products: "Produkte", settings: "Einstellungen",
+    typeMsg: "Schreibe eine Nachricht...", send: "Senden", passwordReq: "Admin-Passwort erforderlich",
+    unlock: "Entsperren", newBlog: "Neuer Blog", title: "Titel", subTitle: "Untertitel", content: "Inhalt",
+    color: "Farbe", font: "Schriftart", save: "Speichern", addProduct: "Produkt hinzufügen", price: "Preis"
+  }
+};
 
-        body {
-            margin: 0;
-            font-family: 'Roboto', sans-serif;
-            background: linear-gradient(135deg, var(--c-1), var(--c-2), var(--c-3), var(--c-4));
-            background-size: 400% 400%;
-            animation: gradientBG 15s ease infinite;
-            color: var(--text-color);
-            transition: all 0.5s ease;
-            overflow-x: hidden;
-            height: 100vh;
-        }
+// --- COMPONENTS ---
 
-        @keyframes gradientBG {
-            0% { background-position: 0% 50%; }
-            50% { background-position: 100% 50%; }
-            100% { background-position: 0% 50%; }
-        }
+const DeviceLoader = ({ onComplete }) => {
+  const [device, setDevice] = useState(0);
+  const devices = [
+    { w: '60px', h: '120px', r: '12px', label: 'Phone' },
+    { w: '160px', h: '100px', r: '8px', label: 'TV' },
+    { w: '100px', h: '140px', r: '16px', label: 'Tablet' },
+    { w: '140px', h: '90px', r: '4px 4px 0 0', label: 'Laptop' },
+    { w: '70px', h: '120px', r: '4px', label: 'PC' }
+  ];
 
-        /* Futuristic UI Elements */
-        .glass-panel {
-            background: var(--glass-bg);
-            backdrop-filter: blur(16px);
-            -webkit-backdrop-filter: blur(16px);
-            border: 1px solid var(--glass-border);
-            border-radius: 20px;
-            box-shadow: 0 8px 32px 0 var(--shadow-glow);
-            transition: all 0.3s ease;
-        }
+  useEffect(() => {
+    let cycle = 0;
+    const interval = setInterval(() => {
+      setDevice(prev => {
+        const next = (prev + 1) % devices.length;
+        return next;
+      });
+      cycle++;
+      if (cycle >= 10) {
+        clearInterval(interval);
+        onComplete();
+      }
+    }, 800);
+    return () => clearInterval(interval);
+  }, []); // Intentionally empty array to prevent interval resets
 
-        .glass-button {
-            background: rgba(255,255,255,0.1);
-            border: 1px solid var(--glass-border);
-            backdrop-filter: blur(5px);
-            color: var(--text-color);
-            transition: all 0.3s;
-        }
-        .glass-button:hover {
-            background: rgba(255,255,255,0.3);
-            box-shadow: 0 0 15px var(--shadow-glow);
-            transform: translateY(-2px);
-        }
-
-        .glass-input {
-            background: rgba(255,255,255,0.1);
-            border: 1px solid var(--glass-border);
-            color: var(--text-color);
-            border-radius: 10px;
-            padding: 10px;
-        }
-        .glass-input:focus {
-            outline: none;
-            box-shadow: 0 0 10px var(--shadow-glow);
-        }
-
-        /* Loading Screen Animation */
-        #loading-screen {
-            position: fixed;
-            inset: 0;
-            background: linear-gradient(135deg, var(--c-1), var(--c-2), var(--c-3), var(--c-4));
-            background-size: 400% 400%;
-            animation: gradientBG 5s ease infinite;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            z-index: 9999;
-            transition: opacity 1s ease;
-        }
-        .shapeshifter {
-            background: rgba(255,255,255,0.2);
-            border: 2px solid rgba(255,255,255,0.8);
-            backdrop-filter: blur(10px);
-            box-shadow: 0 0 30px rgba(255,255,255,0.5);
-            animation: morphDevice 6s infinite;
-        }
-
-        @keyframes morphDevice {
-            0%, 100% { /* Phone */ width: 60px; height: 120px; border-radius: 12px; }
-            20% { /* TV */ width: 200px; height: 120px; border-radius: 5px; }
-            40% { /* Tablet */ width: 140px; height: 180px; border-radius: 15px; }
-            60% { /* Laptop Base */ width: 220px; height: 140px; border-radius: 8px 8px 0 0; border-bottom: 8px solid rgba(255,255,255,0.9); }
-            80% { /* PC Monitor */ width: 180px; height: 110px; border-radius: 8px; border-bottom: 25px solid rgba(255,255,255,0.3); }
-        }
-
-        /* Sections */
-        .app-section {
-            display: none;
-            animation: fadeIn 0.5s ease;
-            height: calc(100vh - 80px);
-            overflow-y: auto;
-            padding: 20px;
-        }
-        .app-section.active {
-            display: block;
-        }
-
-        @keyframes fadeIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
-
-        /* Custom Scrollbar */
-        ::-webkit-scrollbar { width: 8px; }
-        ::-webkit-scrollbar-track { background: rgba(0,0,0,0.1); border-radius: 10px; }
-        ::-webkit-scrollbar-thumb { background: var(--shadow-glow); border-radius: 10px; }
-
-        /* Layout */
-        #app-container { display: none; height: 100vh; flex-direction: column; }
-        nav { height: 80px; display: flex; justify-content: space-around; align-items: center; z-index: 50; }
-        .nav-item { cursor: pointer; text-align: center; padding: 10px; border-radius: 15px; transition: 0.3s; color: var(--text-color); font-family: 'Orbitron', sans-serif;}
-        .nav-item:hover, .nav-item.active { background: var(--glass-bg); box-shadow: 0 0 15px var(--shadow-glow); }
-        
-        /* Chat specific */
-        .chat-container { font-family: var(--chat-font); }
-        .message-box { max-width: 80%; margin-bottom: 15px; padding: 15px; border-radius: 15px; clear: both;}
-        .msg-mine { background: rgba(255,255,255,0.4); float: right; border-bottom-right-radius: 0; }
-        .msg-other { background: rgba(0,0,0,0.1); float: left; border-bottom-left-radius: 0; }
-        .dark-mode .msg-mine { background: rgba(255,255,255,0.2); }
-        .dark-mode .msg-other { background: rgba(255,255,255,0.05); }
-
-        /* Blog Editor */
-        #blog-editor { min-height: 200px; }
-        #blog-editor img { max-width: 100%; border-radius: 10px; margin: 10px 0; }
-        
-        /* Firewall Badge */
-        #firewall-badge { position: fixed; top: 10px; left: 10px; z-index: 1000; font-family: 'Orbitron'; font-size: 0.7rem; color: #00ff00; text-shadow: 0 0 5px #00ff00; background: rgba(0,0,0,0.5); padding: 5px 10px; border-radius: 20px; border: 1px solid #00ff00; pointer-events: none;}
-
-        /* Custom Toast */
-        #toast-container { position: fixed; bottom: 20px; right: 20px; z-index: 10000; }
-        .toast { background: var(--glass-bg); backdrop-filter: blur(10px); border: 1px solid var(--glass-border); padding: 15px 25px; border-radius: 10px; margin-top: 10px; color: var(--text-color); box-shadow: 0 5px 15px rgba(0,0,0,0.2); animation: slideIn 0.3s ease; }
-        @keyframes slideIn { from { transform: translateX(100%); } to { transform: translateX(0); } }
-    </style>
-</head>
-<body class="theme-base" id="body">
-
-    <div id="firewall-badge"><i class="fa-solid fa-shield-halved"></i> Firewall Active: Secure</div>
-    <audio id="bg-music" loop>
-        <source src="https://cdn.pixabay.com/audio/2022/05/27/audio_1808fbf07a.mp3" type="audio/mpeg">
-    </audio>
-
-    <!-- 1. Loading Screen -->
-    <div id="loading-screen">
-        <div class="text-center">
-            <h1 class="text-4xl md:text-6xl font-bold text-white mb-10" style="font-family: 'Orbitron', sans-serif; text-shadow: 0 0 20px rgba(255,255,255,0.8);">Deine Sonnenstrahlen</h1>
-            <div class="shapeshifter mx-auto"></div>
-            <p class="mt-8 text-white text-xl font-light tracking-widest animate-pulse" data-i18n="loading">Loading Systems...</p>
+  return (
+    <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-gradient-to-br from-[#ffd700] via-white to-[#d1c4e9]">
+      <h1 className="text-4xl font-bold mb-12 text-transparent bg-clip-text bg-gradient-to-r from-orange-500 to-purple-600 drop-shadow-lg">
+        Deine Sonnenstrahlen
+      </h1>
+      <div className="relative flex items-center justify-center h-48 w-48">
+        <div 
+          className="bg-white shadow-2xl shadow-orange-500/50 border-4 border-gray-800 transition-all duration-700 ease-in-out flex items-center justify-center overflow-hidden relative"
+          style={{
+            width: devices[device].w, height: devices[device].h, borderRadius: devices[device].r
+          }}
+        >
+          <div className="absolute inset-2 bg-gradient-to-br from-blue-400 to-purple-500 rounded-sm opacity-50"></div>
         </div>
+      </div>
+      <p className="mt-8 text-gray-700 font-semibold animate-pulse">Loading all environments... {devices[device].label}</p>
     </div>
+  );
+};
 
-    <!-- 2. Cookie Modal -->
-    <div id="cookie-modal" class="fixed inset-0 z-[100] flex items-center justify-center hidden" style="background: rgba(0,0,0,0.6); backdrop-filter: blur(5px);">
-        <div class="glass-panel p-8 max-w-lg w-full mx-4">
-            <h2 class="text-3xl font-bold mb-4 font-[Orbitron]" data-i18n="cookie_title">Cookie Settings</h2>
-            <p class="mb-6 opacity-80" data-i18n="cookie_desc">Please select your cookie preferences to continue to the application.</p>
-            
-            <div class="space-y-4 mb-6">
-                <label class="flex items-center justify-between p-3 glass-input bg-opacity-20">
-                    <span data-i18n="cookie_nec">Necessary (Security, Auth)</span>
-                    <input type="checkbox" checked disabled class="form-checkbox h-5 w-5 text-green-500">
-                </label>
-                <label class="flex items-center justify-between p-3 glass-input bg-opacity-20">
-                    <span data-i18n="cookie_pref">Preferences (Theme, Lang)</span>
-                    <input type="checkbox" id="cookie-pref" checked class="form-checkbox h-5 w-5 rounded">
-                </label>
-                <label class="flex items-center justify-between p-3 glass-input bg-opacity-20">
-                    <span data-i18n="cookie_stat">Statistics (Analytics)</span>
-                    <input type="checkbox" id="cookie-stat" class="form-checkbox h-5 w-5 rounded">
-                </label>
-                <label class="flex items-center justify-between p-3 glass-input bg-opacity-20">
-                    <span data-i18n="cookie_mark">Marketing (Ads)</span>
-                    <input type="checkbox" id="cookie-mark" class="form-checkbox h-5 w-5 rounded">
-                </label>
-                <label class="flex items-center justify-between p-3 glass-input bg-opacity-20">
-                    <span data-i18n="cookie_soc">Social Media</span>
-                    <input type="checkbox" id="cookie-soc" class="form-checkbox h-5 w-5 rounded">
-                </label>
-            </div>
-            
-            <div class="flex gap-4">
-                <button onclick="acceptCookies('all')" class="glass-button flex-1 py-3 rounded-xl font-bold" data-i18n="cookie_all">Accept All</button>
-                <button onclick="acceptCookies('selected')" class="glass-button flex-1 py-3 rounded-xl" data-i18n="cookie_sel">Accept Selected</button>
-            </div>
+export default function App() {
+  const [user, setUser] = useState(null);
+  const [authStep, setAuthStep] = useState('loader'); // loader, login, cookies, app
+  const [cookies, setCookies] = useState({ necessary: true, analytics: false, marketing: false, preferences: false, unclassified: false });
+  const [activeTab, setActiveTab] = useState('chat');
+  
+  // App State
+  const [profile, setProfile] = useState({ name: 'Guest User', bio: 'I am new here.', pfp: '', email: '' });
+  const [settings, setSettings] = useState({ darkMode: false, chatFont: 'sans', music: '', language: 'en' });
+  const audioRef = useRef(null);
+
+  // Initialize Auth
+  useEffect(() => {
+    const initAuth = async () => {
+      try {
+        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+          await signInWithCustomToken(auth, __initial_auth_token);
+        } else {
+          await signInAnonymously(auth);
+        }
+      } catch (error) {
+        console.error("Auth init error:", error);
+      }
+    };
+    initAuth();
+    
+    const unsub = onAuthStateChanged(auth, u => {
+      setUser(u);
+    });
+    return () => unsub();
+  }, []);
+
+  // Fetch User Profile
+  useEffect(() => {
+    if (!user) return;
+    const fetchProfile = async () => {
+      try {
+        const docRef = doc(db, 'artifacts', appId, 'users', user.uid, 'userData', 'profile');
+        const snap = await getDoc(docRef);
+        if (snap.exists()) {
+          const data = snap.data();
+          if (data.profile) setProfile(prev => ({ ...prev, ...data.profile }));
+          if (data.settings) setSettings(prev => ({ ...prev, ...data.settings }));
+        }
+      } catch (err) {
+        console.error("Error fetching profile:", err);
+      }
+    };
+    fetchProfile();
+  }, [user]);
+
+  // Audio Handler
+  useEffect(() => {
+    if (audioRef.current) {
+      if (settings?.music) {
+        audioRef.current.src = settings.music;
+        const playPromise = audioRef.current.play();
+        if (playPromise !== undefined) {
+          playPromise.catch(error => {
+            console.log("Audio autoplay prevented by browser:", error);
+          });
+        }
+      } else {
+        audioRef.current.pause();
+      }
+    }
+  }, [settings?.music]);
+
+  // Theming Logic
+  const t = dict[settings?.language || 'en'] || dict['en'];
+  
+  const getThemeVariables = () => {
+    const isDark = settings?.darkMode || false;
+    let primary = '#ffd700'; // Gold
+    let secondary = '#ff9800'; // Orange
+    let tertiary = '#d1c4e9'; // Pastel Purple
+    let bg = isDark ? '#1a1a1a' : '#ffffff';
+    let text = isDark ? '#ffffff' : '#121212';
+    let cardBg = isDark ? 'rgba(30,30,30,0.8)' : 'rgba(255,255,255,0.8)';
+
+    if (activeTab === 'profile') {
+      tertiary = '#bbdefb'; // Pastel Blue
+    } else if (activeTab === 'blogs') {
+      tertiary = '#ffcdd2'; // Pastel Red
+    } else if (activeTab === 'products') {
+      primary = '#a5d6a7'; // Pastel Green
+      secondary = '#1b5e20'; // Dark Green
+      tertiary = '#ffd700'; // Gold
+    } else if (activeTab === 'settings') {
+      secondary = '#ef4444'; // Red instead of Orange
+    }
+
+    return {
+      '--color-primary': primary,
+      '--color-secondary': secondary,
+      '--color-tertiary': tertiary,
+      '--color-bg': bg,
+      '--color-text': text,
+      '--color-card': cardBg,
+      '--font-chat': settings?.chatFont === 'sans' ? 'ui-sans-serif, system-ui' : 
+                      settings?.chatFont === 'serif' ? 'ui-serif, Georgia' : 'monospace'
+    };
+  };
+
+  const handleSaveProfile = async (newProfile) => {
+    setProfile(newProfile);
+    if (user) {
+      try {
+        await setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'userData', 'profile'), { profile: newProfile, settings }, { merge: true });
+      } catch (err) {
+        console.error("Error saving profile", err);
+      }
+    }
+  };
+
+  const handleSaveSettings = async (newSettings) => {
+    setSettings(newSettings);
+    if (user) {
+      try {
+        await setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'userData', 'profile'), { profile, settings: newSettings }, { merge: true });
+      } catch (err) {
+        console.error("Error saving settings", err);
+      }
+    }
+  };
+
+  if (authStep === 'loader') return <DeviceLoader onComplete={() => setAuthStep('login')} />;
+
+  if (authStep === 'login') {
+    return (
+      <div className="fixed inset-0 flex items-center justify-center bg-gradient-to-br from-[#ffd700] via-white to-[#d1c4e9]">
+        <div className="bg-white/80 backdrop-blur-xl p-8 rounded-3xl shadow-2xl w-full max-w-md border border-white/50">
+          <h2 className="text-3xl font-bold mb-6 text-gray-800 text-center flex items-center justify-center gap-2">
+            <LogIn className="text-orange-500" /> Login
+          </h2>
+          <input 
+            type="text" placeholder={t.email}
+            className="w-full p-4 mb-4 rounded-xl border border-gray-200 focus:ring-4 focus:ring-orange-300 outline-none transition-all"
+            onChange={(e) => setProfile({...profile, email: e.target.value})}
+          />
+          <button 
+            onClick={() => setAuthStep('cookies')}
+            className="w-full py-4 bg-gradient-to-r from-orange-400 to-amber-500 text-white rounded-xl font-bold text-lg hover:shadow-lg hover:shadow-orange-500/50 transition-all transform hover:-translate-y-1"
+          >
+            {t.enter}
+          </button>
+          <div className="mt-4 flex items-center justify-center text-sm text-green-600 gap-1">
+            <ShieldCheck size={16} /> Secure Firewall Active
+          </div>
         </div>
-    </div>
+      </div>
+    );
+  }
 
-    <!-- 3. Auth Modal -->
-    <div id="auth-modal" class="fixed inset-0 z-[90] flex items-center justify-center hidden" style="background: rgba(0,0,0,0.6); backdrop-filter: blur(5px);">
-        <div class="glass-panel p-8 max-w-md w-full mx-4 text-center">
-            <h2 class="text-3xl font-bold mb-2 font-[Orbitron]" data-i18n="auth_title">Welcome System</h2>
-            <p class="mb-6 opacity-80" data-i18n="auth_desc">Enter login key or log in using email to restore contents.</p>
-            
-            <input type="email" id="auth-email" placeholder="Email Address" class="w-full mb-4 glass-input text-center text-lg">
-            <div class="flex items-center justify-center gap-2 mb-4">
-                <hr class="w-1/3 border-gray-400 opacity-30"><span class="opacity-50">OR</span><hr class="w-1/3 border-gray-400 opacity-30">
-            </div>
-            <input type="password" id="auth-key" placeholder="Login Key (Optional)" class="w-full mb-6 glass-input text-center text-lg">
-            
-            <button onclick="performLogin()" class="glass-button w-full py-3 rounded-xl font-bold text-lg" data-i18n="auth_btn">Authenticate</button>
+  if (authStep === 'cookies') {
+    return (
+      <div className="fixed inset-0 flex items-center justify-center bg-black/60 backdrop-blur-sm z-50">
+        <div className="bg-white p-8 rounded-3xl shadow-2xl w-full max-w-lg">
+          <h2 className="text-2xl font-bold mb-4">{t.cookies}</h2>
+          <div className="space-y-4 mb-6">
+            {Object.keys(cookies).map(key => (
+              <label key={key} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                <span className="capitalize font-medium text-gray-700">{key}</span>
+                <input 
+                  type="checkbox" 
+                  checked={cookies[key]}
+                  disabled={key === 'necessary'}
+                  onChange={e => setCookies({...cookies, [key]: e.target.checked})}
+                  className="w-5 h-5 text-orange-500 rounded focus:ring-orange-500"
+                />
+              </label>
+            ))}
+          </div>
+          <div className="flex gap-4">
+            <button onClick={() => setAuthStep('app')} className="flex-1 py-3 bg-gray-200 rounded-xl font-bold text-gray-700 hover:bg-gray-300">
+              {t.acceptNec}
+            </button>
+            <button onClick={() => {
+              setCookies({ necessary: true, analytics: true, marketing: true, preferences: true, unclassified: true });
+              setAuthStep('app');
+            }} className="flex-1 py-3 bg-gradient-to-r from-orange-500 to-purple-500 text-white rounded-xl font-bold shadow-lg">
+              {t.acceptAll}
+            </button>
+          </div>
         </div>
-    </div>
+      </div>
+    );
+  }
 
-    <!-- 4. Main App Container -->
-    <div id="app-container">
-        <!-- Main Content Area -->
-        <main class="flex-1 relative glass-panel m-4 overflow-hidden shadow-2xl">
-            
-            <!-- SECTION 1: CHAT -->
-            <section id="chat" class="app-section active h-full flex flex-col">
-                <div class="flex justify-between items-center mb-4 border-b border-white border-opacity-20 pb-2">
-                    <h2 class="text-2xl font-[Orbitron] font-bold" data-i18n="nav_chat">Global Chat</h2>
-                    <span class="text-xs opacity-70" data-i18n="chat_warn">Messages auto-delete after 7 days</span>
-                </div>
-                <div id="chat-messages" class="flex-1 overflow-y-auto chat-container p-2 space-y-4 pb-20">
-                    <!-- Messages will load here -->
-                </div>
-                <div class="mt-4 flex gap-2 absolute bottom-4 left-4 right-4">
-                    <input type="text" id="chat-input" placeholder="Type a message..." class="flex-1 glass-input rounded-full px-6">
-                    <label class="glass-button px-4 rounded-full flex items-center justify-center cursor-pointer" title="Send Image">
-                        <i class="fa-solid fa-image"></i>
-                        <input type="file" id="chat-img-upload" accept="image/*" class="hidden" onchange="sendChatImage(this)">
-                    </label>
-                    <button onclick="sendChatMessage()" class="glass-button px-6 rounded-full font-bold"><i class="fa-solid fa-paper-plane"></i></button>
-                </div>
-            </section>
+  const renderSection = () => {
+    switch (activeTab) {
+      case 'chat': return <ChatSection user={user} profile={profile} db={db} t={t} />;
+      case 'profile': return <ProfileSection profile={profile} onSave={handleSaveProfile} t={t} />;
+      case 'blogs': return <BlogSection user={user} db={db} t={t} />;
+      case 'products': return <ProductSection user={user} db={db} t={t} />;
+      case 'settings': return <SettingsSection settings={settings} onSave={handleSaveSettings} t={t} />;
+      default: return null;
+    }
+  };
 
-            <!-- SECTION 2: PROFILE -->
-            <section id="profile" class="app-section h-full">
-                <h2 class="text-3xl font-[Orbitron] font-bold mb-6 text-center" data-i18n="nav_profile">Your Profile</h2>
-                <div class="max-w-2xl mx-auto flex flex-col items-center">
-                    <div class="relative mb-6 group cursor-pointer" onclick="document.getElementById('profile-pic-upload').click()">
-                        <img id="profile-img-preview" src="https://ui-avatars.com/api/?name=User&background=random" class="w-32 h-32 rounded-full object-cover border-4 border-white shadow-[0_0_15px_var(--shadow-glow)]">
-                        <div class="absolute inset-0 bg-black bg-opacity-50 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity text-white">
-                            <i class="fa-solid fa-camera text-2xl"></i>
-                        </div>
-                        <input type="file" id="profile-pic-upload" accept="image/*,video/*" class="hidden" onchange="updateProfilePic(this)">
-                        <p class="text-xs text-center mt-2 opacity-70">Max 20MB</p>
-                    </div>
-
-                    <div class="w-full space-y-4">
-                        <div>
-                            <label class="block mb-1 text-sm font-bold opacity-80" data-i18n="prof_name">Profile Name (Max 20 chars)</label>
-                            <input type="text" id="profile-name" maxlength="20" class="w-full glass-input" placeholder="Enter name...">
-                        </div>
-                        <div>
-                            <label class="block mb-1 text-sm font-bold opacity-80" data-i18n="prof_bio">Description / Bio</label>
-                            <textarea id="profile-bio" rows="4" class="w-full glass-input resize-none" placeholder="Write about yourself..."></textarea>
-                        </div>
-                        <button onclick="saveProfile()" class="glass-button w-full py-3 rounded-xl font-bold mt-4" data-i18n="prof_save">Save Profile</button>
-                    </div>
-                </div>
-            </section>
-
-            <!-- SECTION 3: BLOGS -->
-            <section id="blogs" class="app-section h-full">
-                <div id="blog-auth-view" class="h-full flex flex-col items-center justify-center">
-                    <i class="fa-solid fa-lock text-6xl mb-4 opacity-50"></i>
-                    <h2 class="text-2xl font-[Orbitron] mb-4" data-i18n="admin_req">Admin Access Required</h2>
-                    <input type="password" id="blog-pwd" placeholder="Enter Password" class="glass-input text-center mb-4">
-                    <button onclick="unlockSection('blogs')" class="glass-button px-8 py-2 rounded-xl" data-i18n="unlock">Unlock</button>
-                </div>
-
-                <div id="blog-content-view" class="hidden h-full flex flex-col">
-                    <div class="flex justify-between items-center mb-4">
-                        <h2 class="text-3xl font-[Orbitron] font-bold" data-i18n="nav_blogs">System Blogs</h2>
-                        <button onclick="toggleBlogEditor()" class="glass-button px-4 py-2 rounded-xl text-sm"><i class="fa-solid fa-plus mr-2"></i>New Blog</button>
-                    </div>
-                    
-                    <!-- Blog Editor -->
-                    <div id="blog-editor-panel" class="hidden glass-panel p-4 mb-6">
-                        <input type="text" id="blog-title" placeholder="Blog Title" class="w-full glass-input mb-2 text-xl font-bold">
-                        <input type="text" id="blog-subtitle" placeholder="Subtitle" class="w-full glass-input mb-4 text-sm opacity-80">
-                        
-                        <div class="flex gap-2 mb-2 bg-white bg-opacity-10 p-2 rounded-lg">
-                            <input type="color" id="blog-color" class="h-8 w-8 cursor-pointer rounded border-0 bg-transparent">
-                            <select id="blog-font" class="glass-input text-sm py-1">
-                                <option value="Roboto" class="text-black">Roboto</option>
-                                <option value="Orbitron" class="text-black">Orbitron</option>
-                                <option value="serif" class="text-black">Serif</option>
-                            </select>
-                            <label class="glass-button px-3 py-1 rounded cursor-pointer text-sm">
-                                <i class="fa-solid fa-image"></i> Add Media
-                                <input type="file" id="blog-media" accept="image/*,video/*" class="hidden" onchange="insertBlogMedia(this)">
-                            </label>
-                        </div>
-                        
-                        <div id="blog-editor" contenteditable="true" class="glass-input w-full p-4 mb-4 focus:outline-none" style="min-height: 150px;" placeholder="Write your content here... Drag and drop supported."></div>
-                        
-                        <div class="flex justify-end gap-2">
-                            <button onclick="toggleBlogEditor()" class="glass-button px-4 py-2 rounded-xl" data-i18n="cancel">Cancel</button>
-                            <button onclick="saveBlog()" class="glass-button px-4 py-2 rounded-xl font-bold bg-opacity-30 bg-green-500" data-i18n="post">Publish Blog</button>
-                        </div>
-                    </div>
-
-                    <!-- Blog List -->
-                    <div id="blog-list" class="flex-1 overflow-y-auto space-y-6 pb-10">
-                        <!-- Blogs load here -->
-                    </div>
-                </div>
-            </section>
-
-            <!-- SECTION 4: PRODUCTS -->
-            <section id="products" class="app-section h-full">
-                <div id="product-auth-view" class="h-full flex flex-col items-center justify-center">
-                    <i class="fa-solid fa-vault text-6xl mb-4 opacity-50 text-green-300"></i>
-                    <h2 class="text-2xl font-[Orbitron] mb-4" data-i18n="admin_req">Admin Access Required</h2>
-                    <input type="password" id="product-pwd" placeholder="Enter Password" class="glass-input text-center mb-4">
-                    <button onclick="unlockSection('products')" class="glass-button px-8 py-2 rounded-xl" data-i18n="unlock">Unlock</button>
-                </div>
-
-                <div id="product-content-view" class="hidden h-full flex flex-col">
-                    <div class="flex justify-between items-center mb-4">
-                        <h2 class="text-3xl font-[Orbitron] font-bold" data-i18n="nav_products">Products Database</h2>
-                        <button onclick="toggleProductEditor()" class="glass-button px-4 py-2 rounded-xl text-sm"><i class="fa-solid fa-plus mr-2"></i>Add Product</button>
-                    </div>
-
-                    <!-- Product Editor -->
-                    <div id="product-editor-panel" class="hidden glass-panel p-4 mb-6 relative z-10">
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                            <div>
-                                <input type="text" id="prod-name" placeholder="Product Name" class="w-full glass-input mb-2 font-bold">
-                                <input type="text" id="prod-sub" placeholder="Subtitle" class="w-full glass-input mb-2 text-sm">
-                                <input type="text" id="prod-price" placeholder="Price (e.g. €49.99)" class="w-full glass-input mb-2 text-green-300 font-bold">
-                                <div class="flex gap-2">
-                                    <input type="color" id="prod-color" class="h-10 w-10 cursor-pointer rounded border-0 bg-transparent" title="Card Color">
-                                    <select id="prod-font" class="glass-input flex-1">
-                                        <option value="Roboto" class="text-black">Roboto</option>
-                                        <option value="Orbitron" class="text-black">Orbitron</option>
-                                    </select>
-                                </div>
-                            </div>
-                            <div class="flex flex-col items-center justify-center border-2 border-dashed border-white border-opacity-30 rounded-xl p-4 cursor-pointer hover:bg-white hover:bg-opacity-5 transition" onclick="document.getElementById('prod-img').click()">
-                                <img id="prod-img-preview" src="" class="hidden max-h-32 mb-2 rounded object-cover">
-                                <i class="fa-solid fa-cloud-arrow-up text-3xl mb-2"></i>
-                                <span class="text-sm text-center">Upload Main Picture</span>
-                                <input type="file" id="prod-img" accept="image/*" class="hidden" onchange="previewProdImg(this)">
-                            </div>
-                        </div>
-                        <textarea id="prod-desc" rows="2" placeholder="Short Description..." class="w-full glass-input mb-2 resize-none"></textarea>
-                        
-                        <!-- Toggle Details section -->
-                        <div class="border-t border-white border-opacity-20 pt-2 mt-2">
-                            <label class="flex items-center gap-2 cursor-pointer mb-2">
-                                <input type="checkbox" id="prod-has-details" class="form-checkbox" onchange="document.getElementById('prod-details-wrap').classList.toggle('hidden')">
-                                <span class="text-sm font-bold">Enable Details Section (Max 200MB)</span>
-                            </label>
-                            <div id="prod-details-wrap" class="hidden space-y-2">
-                                <textarea id="prod-details-text" rows="3" placeholder="Extensive detailed information..." class="w-full glass-input resize-none"></textarea>
-                                <label class="glass-button px-4 py-2 rounded text-sm cursor-pointer inline-block">
-                                    <i class="fa-solid fa-video mr-2"></i> Add Video/More Images
-                                    <input type="file" accept="video/*,image/*" class="hidden" onchange="alert('Media selected (Simulation: File compressed to fit database limits)')">
-                                </label>
-                            </div>
-                        </div>
-
-                        <div class="flex justify-end gap-2 mt-4">
-                            <button onclick="toggleProductEditor()" class="glass-button px-4 py-2 rounded-xl" data-i18n="cancel">Cancel</button>
-                            <button onclick="saveProduct()" class="glass-button px-4 py-2 rounded-xl font-bold bg-opacity-30 bg-green-500" data-i18n="save">Save Product</button>
-                        </div>
-                    </div>
-
-                    <!-- Products Grid -->
-                    <div id="product-list" class="flex-1 overflow-y-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pb-10 content-start">
-                        <!-- Products load here -->
-                    </div>
-                </div>
-            </section>
-
-            <!-- SECTION 5: SETTINGS -->
-            <section id="settings" class="app-section h-full">
-                <h2 class="text-3xl font-[Orbitron] font-bold mb-6" data-i18n="nav_settings">System Settings</h2>
-                
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto">
-                    <!-- Appearance -->
-                    <div class="glass-panel p-6">
-                        <h3 class="text-xl font-bold mb-4 border-b border-white border-opacity-20 pb-2"><i class="fa-solid fa-palette mr-2"></i>Appearance</h3>
-                        
-                        <div class="flex items-center justify-between mb-4">
-                            <span data-i18n="set_dark">Dark Mode</span>
-                            <label class="relative inline-flex items-center cursor-pointer">
-                                <input type="checkbox" id="theme-toggle" class="sr-only peer" onchange="toggleDarkMode(this)">
-                                <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-red-500"></div>
-                            </label>
-                        </div>
-
-                        <div class="mb-4">
-                            <label class="block mb-2 text-sm" data-i18n="set_font">Chat Typing Font</label>
-                            <select id="chat-font-select" class="w-full glass-input" onchange="changeChatFont(this.value)">
-                                <option value="'Roboto', sans-serif" class="text-black">Roboto (Sans Serif)</option>
-                                <option value="'Courier New', monospace" class="text-black">Courier (Monospace)</option>
-                                <option value="'Georgia', serif" class="text-black">Georgia (Serif)</option>
-                                <option value="'Orbitron', sans-serif" class="text-black">Orbitron (Futuristic)</option>
-                            </select>
-                        </div>
-                    </div>
-
-                    <!-- Audio & Language -->
-                    <div class="glass-panel p-6">
-                        <h3 class="text-xl font-bold mb-4 border-b border-white border-opacity-20 pb-2"><i class="fa-solid fa-globe mr-2"></i>Localization & Audio</h3>
-                        
-                        <div class="mb-4">
-                            <label class="block mb-2 text-sm" data-i18n="set_lang">Web Language (Auto Translate)</label>
-                            <select id="lang-select" class="w-full glass-input" onchange="changeLanguage(this.value)">
-                                <option value="en" class="text-black">English</option>
-                                <option value="de" class="text-black">Deutsch (German)</option>
-                                <option value="es" class="text-black">Español (Spanish)</option>
-                            </select>
-                        </div>
-
-                        <div class="mb-4">
-                            <label class="block mb-2 text-sm" data-i18n="set_music">Background Music</label>
-                            <div class="flex gap-2">
-                                <button onclick="toggleMusic()" id="music-btn" class="glass-button px-4 py-2 rounded-lg flex-1"><i class="fa-solid fa-play mr-2"></i>Play Chill Audio</button>
-                                <select id="music-select" class="glass-input flex-1" onchange="changeMusic(this.value)">
-                                    <option value="https://cdn.pixabay.com/audio/2022/05/27/audio_1808fbf07a.mp3" class="text-black">Lofi Chill 1</option>
-                                    <option value="https://cdn.pixabay.com/audio/2022/04/27/audio_67b3ab3043.mp3" class="text-black">Aesthetic Vibe</option>
-                                    <option value="https://cdn.pixabay.com/audio/2022/01/18/audio_d0a13f69d2.mp3" class="text-black">Ambient Space</option>
-                                </select>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Privacy -->
-                    <div class="glass-panel p-6 md:col-span-2">
-                        <h3 class="text-xl font-bold mb-4 border-b border-white border-opacity-20 pb-2"><i class="fa-solid fa-shield mr-2"></i>Privacy & Security</h3>
-                        <p class="text-sm opacity-80 mb-4">Manage your data and adjust cookie preferences. Firewall is currently active preventing XSS and injection attacks.</p>
-                        <button onclick="document.getElementById('cookie-modal').classList.remove('hidden')" class="glass-button px-4 py-2 rounded-xl" data-i18n="set_cookie">Change Cookie Preferences</button>
-                    </div>
-                </div>
-            </section>
-
-        </main>
-
-        <!-- Bottom Navigation -->
-        <nav class="glass-panel mx-4 mb-4 rounded-full flex overflow-hidden shadow-2xl relative">
-            <div class="nav-item flex-1 active" onclick="switchSection('chat', 'base')" id="nav-chat">
-                <i class="fa-solid fa-comments text-2xl block mb-1"></i>
-                <span class="text-xs" data-i18n="nav_chat">Chat</span>
-            </div>
-            <div class="nav-item flex-1" onclick="switchSection('profile', 'profile')" id="nav-profile">
-                <i class="fa-solid fa-user text-2xl block mb-1"></i>
-                <span class="text-xs" data-i18n="nav_profile">Profile</span>
-            </div>
-            <div class="nav-item flex-1" onclick="switchSection('blogs', 'blog')" id="nav-blogs">
-                <i class="fa-solid fa-newspaper text-2xl block mb-1"></i>
-                <span class="text-xs" data-i18n="nav_blogs">Blogs</span>
-            </div>
-            <div class="nav-item flex-1" onclick="switchSection('products', 'product')" id="nav-products">
-                <i class="fa-solid fa-store text-2xl block mb-1"></i>
-                <span class="text-xs" data-i18n="nav_products">Products</span>
-            </div>
-            <div class="nav-item flex-1" onclick="switchSection('settings', 'settings')" id="nav-settings">
-                <i class="fa-solid fa-gear text-2xl block mb-1"></i>
-                <span class="text-xs" data-i18n="nav_settings">Settings</span>
-            </div>
+  return (
+    <div 
+      className="min-h-screen transition-all duration-700 ease-in-out font-sans"
+      style={{
+        ...getThemeVariables(),
+        background: `linear-gradient(135deg, var(--color-primary) 0%, var(--color-bg) 50%, var(--color-tertiary) 100%)`,
+        color: 'var(--color-text)'
+      }}
+    >
+      <audio ref={audioRef} loop />
+      <div className="flex flex-col md:flex-row h-screen p-4 gap-4 max-w-7xl mx-auto">
+        {/* Navigation */}
+        <nav 
+          className="flex md:flex-col gap-2 p-4 rounded-3xl shadow-2xl backdrop-blur-xl border border-white/20"
+          style={{ background: 'var(--color-card)' }}
+        >
+          <div className="hidden md:block text-2xl font-black mb-8 text-transparent bg-clip-text bg-gradient-to-br from-[var(--color-secondary)] to-[var(--color-primary)]">
+            DS.
+          </div>
+          {[
+            { id: 'chat', icon: MessageCircle, label: t.chat },
+            { id: 'profile', icon: User, label: t.profile },
+            { id: 'blogs', icon: FileText, label: t.blogs },
+            { id: 'products', icon: ShoppingBag, label: t.products },
+            { id: 'settings', icon: Settings, label: t.settings }
+          ].map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex items-center gap-3 p-3 rounded-2xl transition-all duration-300 font-bold ${
+                activeTab === tab.id 
+                  ? 'bg-[var(--color-secondary)] text-white shadow-lg shadow-[var(--color-secondary)]/40 transform scale-105' 
+                  : 'hover:bg-black/5 opacity-70 hover:opacity-100'
+              }`}
+            >
+              <tab.icon size={24} />
+              <span className="hidden md:inline">{tab.label}</span>
+            </button>
+          ))}
         </nav>
+
+        {/* Main Content Area */}
+        <main 
+          className="flex-1 rounded-3xl shadow-2xl backdrop-blur-xl border border-white/20 overflow-hidden flex flex-col relative"
+          style={{ background: 'var(--color-card)' }}
+        >
+          <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-[var(--color-primary)] via-[var(--color-secondary)] to-[var(--color-tertiary)] opacity-80"></div>
+          {renderSection()}
+        </main>
+      </div>
     </div>
+  );
+}
 
-    <div id="toast-container"></div>
+// --- SUB-SECTIONS ---
 
-    <script>
-        // --- Globals & State ---
-        let currentUserProfile = {
-            name: "Anonymous User",
-            bio: "",
-            pic: "https://ui-avatars.com/api/?name=User&background=random",
-            email: ""
-        };
-        let appLoaded = false;
-        let isMusicPlaying = false;
-        let activeSection = 'chat';
-        let unsubscribeChats, unsubscribeBlogs, unsubscribeProducts;
+function ChatSection({ user, profile, db, t }) {
+  const [messages, setMessages] = useState([]);
+  const [input, setInput] = useState('');
+  const chatRef = useRef(null);
 
-        // --- Utility Functions ---
-        const showToast = (msg, type='info') => {
-            const container = document.getElementById('toast-container');
-            const toast = document.createElement('div');
-            toast.className = `toast border-l-4 ${type==='error'?'border-red-500':'border-green-500'}`;
-            toast.innerHTML = `<i class="fa-solid ${type==='error'?'fa-circle-exclamation':'fa-check-circle'} mr-2"></i>${msg}`;
-            container.appendChild(toast);
-            setTimeout(() => { toast.style.opacity='0'; setTimeout(()=>toast.remove(),300); }, 3000);
-        };
+  useEffect(() => {
+    if (!user) return;
+    const q = collection(db, 'artifacts', appId, 'public', 'data', 'chats');
+    const unsub = onSnapshot(q, (snap) => {
+      const msgs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      const oneWeekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+      const validMsgs = msgs.filter(m => (m.timestamp || 0) > oneWeekAgo).sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+      setMessages(validMsgs);
+      setTimeout(() => {
+        if (chatRef.current) chatRef.current.scrollTop = chatRef.current.scrollHeight;
+      }, 100);
+    }, (err) => {
+      console.error("Chat fetch error:", err);
+    });
+    return () => unsub();
+  }, [user, db]);
 
-        const escapeHTML = (str) => str.replace(/[&<>'"]/g, tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag]));
+  const handleSend = async () => {
+    if (!input.trim() || !user) return;
+    const cleanText = firewallSanitize(input);
+    try {
+      await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'chats'), {
+        text: cleanText,
+        senderId: user.uid,
+        senderName: profile?.name || 'User',
+        senderPfp: profile?.pfp || '',
+        timestamp: Date.now()
+      });
+      setInput('');
+    } catch (e) {
+      console.error("Send error:", e);
+    }
+  };
 
-        // Compress image to fit Firebase 1MB doc limit (simulating 20mb/100mb limits)
-        const compressImage = (file, maxWidth = 800) => {
-            return new Promise((resolve) => {
-                const reader = new FileReader();
-                reader.readAsDataURL(file);
-                reader.onload = (event) => {
-                    const img = new Image();
-                    img.src = event.target.result;
-                    img.onload = () => {
-                        const canvas = document.createElement('canvas');
-                        const scaleSize = maxWidth / img.width;
-                        canvas.width = maxWidth;
-                        canvas.height = img.height * scaleSize;
-                        const ctx = canvas.getContext('2d');
-                        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-                        resolve(canvas.toDataURL('image/jpeg', 0.7)); // Compress
-                    };
-                };
-            });
-        };
+  const handleImageUpload = async (e) => {
+    const file = e.target.files[0];
+    if (file && user) {
+      try {
+        const base64 = await processImageFile(file);
+        await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'chats'), {
+          text: '', imageUrl: base64, senderId: user.uid, senderName: profile?.name || 'User', senderPfp: profile?.pfp || '', timestamp: Date.now()
+        });
+      } catch (err) {
+        console.error("Upload error:", err);
+      }
+    }
+  };
 
-        // --- Initialization Sequence ---
-        window.onload = () => {
-            setTimeout(() => {
-                const loader = document.getElementById('loading-screen');
-                loader.style.opacity = '0';
-                setTimeout(() => {
-                    loader.classList.add('hidden');
-                    checkCookiesAndAuth();
-                }, 800);
-            }, 2000); // Shorter loading time
-        };
+  return (
+    <div className="flex flex-col h-full p-6" style={{ fontFamily: 'var(--font-chat)' }}>
+      <h2 className="text-3xl font-bold mb-6 border-b pb-4 border-gray-200/50 flex items-center gap-3">
+        <MessageCircle className="text-[var(--color-secondary)]" /> {t.chat}
+      </h2>
+      
+      <div className="flex-1 overflow-y-auto space-y-4 pr-4 custom-scrollbar" ref={chatRef}>
+        {messages.map(msg => {
+          const isMe = msg.senderId === user?.uid;
+          const date = msg.timestamp ? new Date(msg.timestamp) : new Date();
+          return (
+            <div key={msg.id} className={`flex gap-4 ${isMe ? 'flex-row-reverse' : ''}`}>
+              <img src={msg.senderPfp || 'https://api.dicebear.com/7.x/avataaars/svg?seed=Guest'} alt="" className="w-10 h-10 rounded-full shadow-md object-cover border-2 border-white" />
+              <div className={`max-w-[70%] flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
+                <span className="text-xs opacity-70 mb-1 font-bold">{msg.senderName}</span>
+                <div className={`p-4 rounded-2xl shadow-md ${isMe ? 'bg-[var(--color-secondary)] text-white rounded-tr-none' : 'bg-black/5 rounded-tl-none backdrop-blur-md'}`}>
+                  {msg.imageUrl ? (
+                    <img src={msg.imageUrl} alt="upload" className="rounded-xl max-w-full h-auto max-h-60 object-contain" />
+                  ) : (
+                    <p className="break-words">{msg.text}</p>
+                  )}
+                </div>
+                <span className="text-[10px] opacity-50 mt-1">{date.toLocaleDateString()} {date.toLocaleTimeString()}</span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
 
-        const checkCookiesAndAuth = () => {
-            if(!localStorage.getItem('cookies_accepted')) {
-                document.getElementById('cookie-modal').classList.remove('hidden');
-            } else {
-                document.getElementById('auth-modal').classList.remove('hidden');
-            }
-        };
+      <div className="mt-4 flex items-center gap-3 bg-black/5 p-2 rounded-2xl backdrop-blur-md">
+        <label className="p-3 cursor-pointer hover:bg-black/10 rounded-xl transition-colors">
+          <ImageIcon size={24} className="text-[var(--color-secondary)]" />
+          <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
+        </label>
+        <input 
+          type="text" 
+          value={input} 
+          onChange={e => setInput(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && handleSend()}
+          placeholder={t.typeMsg}
+          className="flex-1 bg-transparent outline-none p-2"
+        />
+        <button onClick={handleSend} className="p-3 bg-[var(--color-secondary)] text-white rounded-xl shadow-lg hover:scale-105 transition-transform">
+          <Send size={24} />
+        </button>
+      </div>
+    </div>
+  );
+}
 
-        const acceptCookies = (type) => {
-            try {
-                localStorage.setItem('cookies_accepted', type);
-                document.getElementById('cookie-modal').classList.add('hidden');
-                if(!appLoaded) document.getElementById('auth-modal').classList.remove('hidden');
-                showToast("Cookie preferences saved.");
-            } catch(e) {
-                console.error("Storage error:", e);
-                // Ensure UI proceeds even if localStorage is blocked
-                document.getElementById('cookie-modal').classList.add('hidden');
-                if(!appLoaded) document.getElementById('auth-modal').classList.remove('hidden');
-            }
-        };
+function ProfileSection({ profile, onSave, t }) {
+  const [localProf, setLocalProf] = useState(profile);
 
-        const performLogin = async () => {
-            const email = document.getElementById('auth-email').value;
-            const key = document.getElementById('auth-key').value;
+  const handlePfp = async (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      if (file.size > 20 * 1024 * 1024) return alert("Max 20MB allowed"); 
+      try {
+        const base64 = await processImageFile(file);
+        setLocalProf({...localProf, pfp: base64});
+      } catch (err) {
+        console.error("Profile image process error:", err);
+      }
+    }
+  };
+
+  return (
+    <div className="p-8 h-full overflow-y-auto">
+      <h2 className="text-3xl font-bold mb-8 flex items-center gap-3">
+        <User className="text-[var(--color-secondary)]" /> {t.profile}
+      </h2>
+      <div className="max-w-2xl mx-auto space-y-8 bg-white/40 p-8 rounded-3xl shadow-xl border border-white/50 backdrop-blur-md">
+        
+        <div className="flex flex-col items-center gap-4">
+          <div className="relative group">
+            <img src={localProf.pfp || 'https://api.dicebear.com/7.x/avataaars/svg?seed=Guest'} alt="PFP" className="w-32 h-32 rounded-full object-cover shadow-2xl border-4 border-white transition-transform group-hover:scale-105" />
+            <label className="absolute bottom-0 right-0 p-3 bg-[var(--color-secondary)] text-white rounded-full cursor-pointer shadow-lg hover:scale-110 transition-transform">
+              <ImageIcon size={20} />
+              <input type="file" accept="image/*,video/*" className="hidden" onChange={handlePfp} />
+            </label>
+          </div>
+          <span className="text-xs font-bold opacity-50 bg-black/10 px-3 py-1 rounded-full">Max 20 MB File Size</span>
+        </div>
+
+        <div>
+          <label className="block text-sm font-bold mb-2 opacity-80">Profile Name (Max 20 Lines)</label>
+          <textarea 
+            rows={3} 
+            value={localProf.name}
+            onChange={e => {
+              const lines = e.target.value.split('\n');
+              if (lines.length <= 20) setLocalProf({...localProf, name: e.target.value});
+            }}
+            className="w-full p-4 rounded-2xl bg-white/60 border border-white focus:ring-4 focus:ring-[var(--color-secondary)]/30 outline-none resize-none transition-all"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-bold mb-2 opacity-80">Description / Bio</label>
+          <textarea 
+            rows={5} 
+            value={localProf.bio}
+            onChange={e => setLocalProf({...localProf, bio: e.target.value})}
+            className="w-full p-4 rounded-2xl bg-white/60 border border-white focus:ring-4 focus:ring-[var(--color-secondary)]/30 outline-none resize-none transition-all"
+          />
+        </div>
+
+        <button 
+          onClick={() => onSave(localProf)}
+          className="w-full py-4 bg-gradient-to-r from-[var(--color-primary)] to-[var(--color-secondary)] text-white font-bold rounded-2xl shadow-xl hover:shadow-2xl hover:-translate-y-1 transition-all"
+        >
+          {t.save} Profile
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function AdminGate({ expectedPass, onUnlock, t }) {
+  const [pass, setPass] = useState('');
+  return (
+    <div className="flex flex-col items-center justify-center h-full p-8 text-center space-y-6">
+      <div className="w-24 h-24 bg-[var(--color-secondary)] rounded-full flex items-center justify-center shadow-2xl shadow-[var(--color-secondary)]/50">
+        <Lock size={48} className="text-white" />
+      </div>
+      <h2 className="text-3xl font-bold">{t.passwordReq}</h2>
+      <input 
+        type="password" 
+        value={pass} 
+        onChange={e => setPass(e.target.value)}
+        className="px-6 py-4 rounded-2xl bg-white/50 border-2 border-white focus:border-[var(--color-secondary)] outline-none text-center text-xl tracking-widest shadow-inner w-full max-w-md"
+        placeholder="••••••••••"
+      />
+      <button 
+        onClick={() => { if(pass === expectedPass) onUnlock(); else alert("Invalid Password"); }}
+        className="px-8 py-4 bg-[var(--color-secondary)] text-white rounded-xl font-bold shadow-lg hover:scale-105 transition-transform"
+      >
+        {t.unlock}
+      </button>
+    </div>
+  );
+}
+
+function BlogSection({ user, db, t }) {
+  const [unlocked, setUnlocked] = useState(false);
+  const [blogs, setBlogs] = useState([]);
+  const [editing, setEditing] = useState(false);
+  const [newBlog, setNewBlog] = useState({ title: '', subtitle: '', content: '', color: '#000000', font: 'sans-serif' });
+
+  useEffect(() => {
+    if (!user) return;
+    const q = collection(db, 'artifacts', appId, 'public', 'data', 'blogs');
+    const unsub = onSnapshot(q, snap => {
+      setBlogs(snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0)));
+    }, err => {
+      console.error("Blogs fetch error:", err);
+    });
+    return () => unsub();
+  }, [user, db]);
+
+  if (!unlocked) return <AdminGate expectedPass="Sonnenstrahlen-47-47053" onUnlock={() => setUnlocked(true)} t={t} />;
+
+  const handleSave = async () => {
+    try {
+      await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'blogs'), {
+        ...newBlog,
+        content: firewallSanitize(newBlog.content),
+        timestamp: Date.now()
+      });
+      setEditing(false);
+      setNewBlog({ title: '', subtitle: '', content: '', color: '#000000', font: 'sans-serif' });
+    } catch (e) {
+      console.error("Blog save error:", e);
+    }
+  };
+
+  return (
+    <div className="p-8 h-full flex flex-col">
+      <div className="flex justify-between items-center mb-8 border-b pb-4 border-gray-200/50">
+        <h2 className="text-3xl font-bold flex items-center gap-3">
+          <FileText className="text-[var(--color-secondary)]" /> {t.blogs}
+        </h2>
+        <button onClick={() => setEditing(!editing)} className="px-6 py-2 bg-white rounded-xl font-bold shadow-md hover:bg-gray-50 text-[var(--color-secondary)]">
+          {editing ? 'Cancel' : t.newBlog}
+        </button>
+      </div>
+
+      <div className="flex-1 overflow-y-auto space-y-8 pr-4 custom-scrollbar">
+        {editing && (
+          <div className="bg-white/60 p-6 rounded-3xl shadow-xl border border-white space-y-4">
+            <div className="flex gap-4">
+              <input type="text" placeholder={t.title} className="flex-1 p-3 rounded-xl bg-white/80 outline-none" value={newBlog.title} onChange={e => setNewBlog({...newBlog, title: e.target.value})} />
+              <input type="color" value={newBlog.color} onChange={e => setNewBlog({...newBlog, color: e.target.value})} className="h-12 w-12 rounded-xl cursor-pointer" />
+              <select value={newBlog.font} onChange={e => setNewBlog({...newBlog, font: e.target.value})} className="p-3 rounded-xl bg-white/80 outline-none">
+                <option value="sans-serif">Sans Serif</option>
+                <option value="serif">Serif</option>
+                <option value="monospace">Monospace</option>
+              </select>
+            </div>
+            <input type="text" placeholder={t.subTitle} className="w-full p-3 rounded-xl bg-white/80 outline-none" value={newBlog.subtitle} onChange={e => setNewBlog({...newBlog, subtitle: e.target.value})} />
             
-            const btn = document.getElementById('auth-btn');
-            const originalText = btn ? btn.innerHTML : 'Authenticate';
-            if(btn) btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-2"></i>Authenticating...';
-            if(btn) btn.disabled = true;
+            <div className="relative">
+              <p className="text-xs mb-2 opacity-60 font-bold uppercase">Drag & Drop text and photos inside the box below (Max 100MB Window)</p>
+              <div 
+                contentEditable 
+                className="w-full min-h-[300px] p-4 rounded-2xl bg-white/80 border border-gray-200 focus:ring-4 outline-none overflow-y-auto"
+                onInput={e => setNewBlog({...newBlog, content: e.currentTarget.innerHTML})}
+                style={{ color: newBlog.color, fontFamily: newBlog.font }}
+              />
+            </div>
+            <button onClick={handleSave} className="w-full py-4 bg-[var(--color-secondary)] text-white rounded-xl font-bold shadow-lg">Publish Blog</button>
+          </div>
+        )}
 
-            try {
-                // Init Firebase if available
-                if(window.initFirebase) await window.initFirebase();
-                
-                const auth = window.getAuth();
-                if(auth && auth.currentUser) {
-                    const db = window.getDb();
-                    const appId = window.getAppId();
-                    const uid = auth.currentUser.uid;
-                    
-                    // Simulate loading user profile based on email/auth
-                    try {
-                        const profileRef = doc(db, 'artifacts', appId, 'users', uid, 'profile');
-                        const docSnap = await getDoc(profileRef);
-                        if(docSnap.exists()) {
-                            currentUserProfile = docSnap.data();
-                            showToast("Welcome back! Data restored.");
-                        } else {
-                            currentUserProfile.email = email;
-                            await setDoc(profileRef, currentUserProfile);
-                            showToast("New profile registered.");
+        {blogs.map(blog => (
+          <article key={blog.id} className="bg-white/40 p-8 rounded-3xl shadow-lg border border-white hover:shadow-xl transition-shadow backdrop-blur-md">
+            <h3 className="text-4xl font-black mb-2" style={{ color: blog.color, fontFamily: blog.font }}>{blog.title}</h3>
+            <h4 className="text-xl font-semibold opacity-70 mb-6">{blog.subtitle}</h4>
+            <div 
+              className="prose max-w-none break-words" 
+              style={{ color: blog.color, fontFamily: blog.font }}
+              dangerouslySetInnerHTML={{ __html: blog.content }} 
+            />
+            <p className="mt-8 text-xs font-bold opacity-40">{blog.timestamp ? new Date(blog.timestamp).toLocaleDateString() : ''}</p>
+          </article>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ProductSection({ user, db, t }) {
+  const [unlocked, setUnlocked] = useState(false);
+  const [products, setProducts] = useState([]);
+  const [editing, setEditing] = useState(false);
+  const [newProd, setNewProd] = useState({ name: '', subtitle: '', price: '', description: '', pfp: '', color: '#1b5e20', font: 'sans-serif', details: '' });
+
+  useEffect(() => {
+    if (!user) return;
+    const q = collection(db, 'artifacts', appId, 'public', 'data', 'products');
+    const unsub = onSnapshot(q, snap => {
+      setProducts(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    }, err => {
+      console.error("Products fetch error:", err);
+    });
+    return () => unsub();
+  }, [user, db]);
+
+  if (!unlocked) return <AdminGate expectedPass="Sonnenstrahlen-47.09-47053" onUnlock={() => setUnlocked(true)} t={t} />;
+
+  const handleSave = async () => {
+    try {
+      await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'products'), {
+        ...newProd,
+        description: firewallSanitize(newProd.description),
+        details: firewallSanitize(newProd.details),
+        timestamp: Date.now()
+      });
+      setEditing(false);
+      setNewProd({ name: '', subtitle: '', price: '', description: '', pfp: '', color: '#1b5e20', font: 'sans-serif', details: '' });
+    } catch (err) {
+      console.error("Product save error:", err);
+    }
+  };
+
+  return (
+    <div className="p-8 h-full flex flex-col">
+       <div className="flex justify-between items-center mb-8 border-b pb-4 border-gray-200/50">
+        <h2 className="text-3xl font-bold flex items-center gap-3">
+          <ShoppingBag className="text-[var(--color-secondary)]" /> {t.products}
+        </h2>
+        <button onClick={() => setEditing(!editing)} className="px-6 py-2 bg-[var(--color-primary)] text-green-900 rounded-xl font-bold shadow-md hover:scale-105 transition-transform">
+          {editing ? 'Cancel' : t.addProduct}
+        </button>
+      </div>
+
+      <div className="flex-1 overflow-y-auto pr-4 custom-scrollbar">
+        {editing && (
+           <div className="bg-white/80 p-6 rounded-3xl shadow-2xl border-2 border-[var(--color-primary)] mb-8 space-y-4">
+              <div className="flex gap-4">
+                <input type="text" placeholder="Product Name" className="flex-1 p-3 rounded-xl bg-white outline-none" value={newProd.name} onChange={e => setNewProd({...newProd, name: e.target.value})} />
+                <input type="text" placeholder={t.price} className="w-32 p-3 rounded-xl bg-white outline-none" value={newProd.price} onChange={e => setNewProd({...newProd, price: e.target.value})} />
+              </div>
+              <input type="text" placeholder={t.subTitle} className="w-full p-3 rounded-xl bg-white outline-none" value={newProd.subtitle} onChange={e => setNewProd({...newProd, subtitle: e.target.value})} />
+              
+              <div className="flex gap-4 items-center bg-white p-3 rounded-xl">
+                 <label className="flex-1 cursor-pointer flex items-center gap-2 font-bold opacity-70 hover:opacity-100">
+                    <ImageIcon /> Upload Product Image (Max 200MB limit simulated)
+                    <input type="file" className="hidden" accept="image/*" onChange={async (e) => {
+                      if(e.target.files[0]) {
+                        try {
+                          const fileBase64 = await processImageFile(e.target.files[0]);
+                          setNewProd({...newProd, pfp: fileBase64});
+                        } catch (err) {
+                          console.error("Image error:", err);
                         }
-                    } catch(e) { console.error("Profile load err:",e); }
-                    
-                    startApp();
-                } else {
-                    // Local fallback
-                    showToast("Running in local session.");
-                    startApp();
-                }
-            } catch (err) {
-                console.error("Login sequence error:", err);
-                showToast("Connection error, falling back to local mode.", "error");
-                startApp(); // GUARANTEE we enter the app
-            } finally {
-                if(btn) {
-                    btn.innerHTML = originalText;
-                    btn.disabled = false;
-                }
-            }
-        };
+                      }
+                    }}/>
+                 </label>
+                 <input type="color" value={newProd.color} onChange={e => setNewProd({...newProd, color: e.target.value})} className="h-10 w-10 rounded cursor-pointer" />
+              </div>
 
-        const startApp = () => {
-            document.getElementById('auth-modal').classList.add('hidden');
-            document.getElementById('app-container').style.display = 'flex';
-            appLoaded = true;
-            
-            // Populate profile UI
-            document.getElementById('profile-name').value = currentUserProfile.name || "";
-            document.getElementById('profile-bio').value = currentUserProfile.bio || "";
-            document.getElementById('profile-img-preview').src = currentUserProfile.pic;
+              <textarea rows="3" placeholder="Description" className="w-full p-3 rounded-xl bg-white outline-none" value={newProd.description} onChange={e => setNewProd({...newProd, description: e.target.value})} />
+              <textarea rows="3" placeholder="Extended Details (Togglable)" className="w-full p-3 rounded-xl bg-white outline-none" value={newProd.details} onChange={e => setNewProd({...newProd, details: e.target.value})} />
+              
+              <button onClick={handleSave} className="w-full py-4 bg-[var(--color-secondary)] text-white rounded-xl font-bold shadow-lg">Save Product</button>
+           </div>
+        )}
 
-            // Init listeners
-            setupFirebaseListeners();
-            switchSection('chat', 'base');
-        };
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {products.map(prod => (
+            <ProductCard key={prod.id} product={prod} />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
 
-        // --- UI Navigation & Themes ---
-        const switchSection = (sectionId, themeName) => {
-            // Update active nav
-            document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
-            document.getElementById(`nav-${sectionId}`).classList.add('active');
-            
-            // Update section visibility
-            document.querySelectorAll('.app-section').forEach(el => el.classList.remove('active'));
-            document.getElementById(sectionId).classList.add('active');
-            
-            // Update theme
-            document.getElementById('body').className = `theme-${themeName} ${document.getElementById('theme-toggle').checked ? 'dark-mode' : ''}`;
-            activeSection = sectionId;
-        };
-
-        // --- Firebase Data Listeners (Rule 3 Guarded) ---
-        const setupFirebaseListeners = () => {
-            if(!window.getDb || !window.getAuth()?.currentUser) return;
-            const db = window.getDb();
-            const appId = window.getAppId();
-            
-            // 1. Chat Listener (Filter out > 1 week)
-            const chatRef = collection(db, 'artifacts', appId, 'public', 'data', 'chats');
-            unsubscribeChats = onSnapshot(chatRef, (snapshot) => {
-                const oneWeekAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
-                let msgs = [];
-                snapshot.forEach(doc => {
-                    const data = doc.data();
-                    if(data.timestamp > oneWeekAgo) {
-                        msgs.push({id: doc.id, ...data});
-                    } else {
-                        // Simulate auto-delete by actually deleting from DB
-                        deleteDoc(doc.ref).catch(e=>{});
-                    }
-                });
-                msgs.sort((a,b) => a.timestamp - b.timestamp);
-                renderChats(msgs);
-            }, (err) => console.error("Chat listener err:", err));
-
-            // 2. Blogs Listener
-            const blogRef = collection(db, 'artifacts', appId, 'public', 'data', 'blogs');
-            unsubscribeBlogs = onSnapshot(blogRef, (snapshot) => {
-                let blogs = [];
-                snapshot.forEach(doc => blogs.push({id: doc.id, ...doc.data()}));
-                blogs.sort((a,b) => b.timestamp - a.timestamp);
-                renderBlogs(blogs);
-            }, (err) => console.error("Blog err:", err));
-
-            // 3. Products Listener
-            const prodRef = collection(db, 'artifacts', appId, 'public', 'data', 'products');
-            unsubscribeProducts = onSnapshot(prodRef, (snapshot) => {
-                let prods = [];
-                snapshot.forEach(doc => prods.push({id: doc.id, ...doc.data()}));
-                prods.sort((a,b) => b.timestamp - a.timestamp);
-                renderProducts(prods);
-            }, (err) => console.error("Prod err:", err));
-        };
-
-        // --- Chat Logic ---
-        const renderChats = (messages) => {
-            const container = document.getElementById('chat-messages');
-            container.innerHTML = '';
-            messages.forEach(msg => {
-                const isMine = msg.uid === (window.getAuth()?.currentUser?.uid || 'local');
-                const div = document.createElement('div');
-                div.className = `message-box glass-panel ${isMine ? 'msg-mine' : 'msg-other'}`;
-                
-                let mediaHtml = '';
-                if(msg.image) {
-                    mediaHtml = `<img src="${msg.image}" class="max-w-full rounded mb-2" alt="Chat Image">`;
-                }
-
-                div.innerHTML = `
-                    <div class="flex items-center gap-2 mb-1 opacity-70 text-xs">
-                        <img src="${msg.userPic}" class="w-5 h-5 rounded-full object-cover">
-                        <span class="font-bold">${escapeHTML(msg.userName)}</span>
-                    </div>
-                    ${mediaHtml}
-                    <div class="break-words">${escapeHTML(msg.text)}</div>
-                    <div class="text-[10px] opacity-50 text-right mt-1">${new Date(msg.timestamp).toLocaleString()}</div>
-                `;
-                container.appendChild(div);
-            });
-            container.scrollTop = container.scrollHeight;
-        };
-
-        const sendChatMessage = async (imgData = null) => {
-            const input = document.getElementById('chat-input');
-            const text = input.value.trim();
-            if(!text && !imgData) return;
-            
-            const db = window.getDb();
-            const auth = window.getAuth();
-            if(db && auth.currentUser) {
-                try {
-                    await addDoc(collection(db, 'artifacts', window.getAppId(), 'public', 'data', 'chats'), {
-                        uid: auth.currentUser.uid,
-                        userName: currentUserProfile.name,
-                        userPic: currentUserProfile.pic,
-                        text: text,
-                        image: imgData,
-                        timestamp: Date.now()
-                    });
-                    input.value = '';
-                } catch(e) { showToast("Failed to send.", "error"); }
-            }
-        };
-
-        const sendChatImage = async (input) => {
-            if(input.files && input.files[0]) {
-                const base64 = await compressImage(input.files[0], 500);
-                await sendChatMessage(base64);
-                input.value = '';
-            }
-        };
-
-        // --- Profile Logic ---
-        const updateProfilePic = async (input) => {
-            if(input.files && input.files[0]) {
-                if(input.files[0].size > 20 * 1024 * 1024) {
-                    showToast("File exceeds 20MB limit.", "error"); return;
-                }
-                const base64 = await compressImage(input.files[0], 300);
-                document.getElementById('profile-img-preview').src = base64;
-                currentUserProfile.pic = base64;
-            }
-        };
-
-        const saveProfile = async () => {
-            currentUserProfile.name = document.getElementById('profile-name').value.trim() || "Anonymous";
-            currentUserProfile.bio = document.getElementById('profile-bio').value.trim();
-            
-            const db = window.getDb();
-            const auth = window.getAuth();
-            if(db && auth.currentUser) {
-                try {
-                    await setDoc(doc(db, 'artifacts', window.getAppId(), 'users', auth.currentUser.uid, 'profile'), currentUserProfile);
-                    showToast("Profile updated successfully!");
-                } catch(e) { showToast("Error saving profile.", "error"); }
-            } else {
-                showToast("Profile saved locally (Offline mode)");
-            }
-        };
-
-        // --- Auth Sections (Blogs & Products) ---
-        const unlockSection = (section) => {
-            const pwdInput = document.getElementById(`${section}-pwd`).value;
-            if(section === 'blogs' && pwdInput === 'Sonnenstrahlen-47-47053') {
-                document.getElementById('blog-auth-view').classList.add('hidden');
-                document.getElementById('blog-content-view').classList.remove('hidden');
-                showToast("Admin Blogs Unlocked");
-            } else if (section === 'products' && pwdInput === 'Sonnenstrahlen-47.09-47053') {
-                document.getElementById('product-auth-view').classList.add('hidden');
-                document.getElementById('product-content-view').classList.remove('hidden');
-                showToast("Admin Products Unlocked");
-            } else {
-                showToast("Access Denied. Incorrect Password.", "error");
-            }
-        };
-
-        // --- Blog Logic ---
-        const toggleBlogEditor = () => document.getElementById('blog-editor-panel').classList.toggle('hidden');
+function ProductCard({ product }) {
+  const [showDetails, setShowDetails] = useState(false);
+  return (
+    <div className="bg-gradient-to-b from-white/60 to-white/30 backdrop-blur-md rounded-3xl overflow-hidden shadow-xl border border-white/50 flex flex-col group hover:shadow-2xl hover:shadow-[var(--color-primary)]/40 transition-all">
+      {product.pfp && <img src={product.pfp} alt={product.name} className="w-full h-48 object-cover group-hover:scale-105 transition-transform duration-500" />}
+      <div className="p-6 flex-1 flex flex-col">
+        <div className="flex justify-between items-start mb-2">
+           <h3 className="text-2xl font-black" style={{ color: product.color || '#1b5e20' }}>{product.name}</h3>
+           <span className="text-xl font-bold bg-[var(--color-primary)] text-green-900 px-3 py-1 rounded-lg">{product.price}</span>
+        </div>
+        <h4 className="text-sm font-bold opacity-60 mb-4">{product.subtitle}</h4>
+        <p className="opacity-80 mb-6 flex-1 break-words">{product.description}</p>
         
-        const insertBlogMedia = async (input) => {
-            if(input.files && input.files[0]) {
-                const base64 = await compressImage(input.files[0], 600);
-                const img = `<img src="${base64}" alt="Blog Media"><br>`;
-                document.execCommand('insertHTML', false, img);
-            }
-        };
+        {showDetails && (
+          <div className="mb-6 p-4 bg-black/5 rounded-xl text-sm animate-fade-in break-words">
+             <div dangerouslySetInnerHTML={{ __html: product.details || '' }} />
+          </div>
+        )}
 
-        const saveBlog = async () => {
-            const title = document.getElementById('blog-title').value.trim();
-            const subtitle = document.getElementById('blog-subtitle').value.trim();
-            const content = document.getElementById('blog-editor').innerHTML;
-            const color = document.getElementById('blog-color').value;
-            const font = document.getElementById('blog-font').value;
+        <button 
+          onClick={() => setShowDetails(!showDetails)}
+          className="w-full py-3 bg-white/50 hover:bg-white rounded-xl font-bold transition-colors shadow-sm" style={{ color: product.color || '#1b5e20' }}
+        >
+          {showDetails ? 'Hide Details' : 'View Details'}
+        </button>
+      </div>
+    </div>
+  );
+}
 
-            if(!title) return showToast("Title is required", "error");
+function SettingsSection({ settings, onSave, t }) {
+  const musics = [
+    { label: 'None', url: '' },
+    { label: 'Chill Lofi (Bensound)', url: 'https://www.bensound.com/bensound-music/bensound-chill.mp3' }, // Public placeholder audio
+    { label: 'Acoustic Breeze', url: 'https://www.bensound.com/bensound-music/bensound-acousticbreeze.mp3' }
+  ];
 
-            const db = window.getDb();
-            if(db) {
-                try {
-                    await addDoc(collection(db, 'artifacts', window.getAppId(), 'public', 'data', 'blogs'), {
-                        title, subtitle, content, color, font, timestamp: Date.now()
-                    });
-                    toggleBlogEditor();
-                    document.getElementById('blog-title').value = '';
-                    document.getElementById('blog-subtitle').value = '';
-                    document.getElementById('blog-editor').innerHTML = '';
-                    showToast("Blog published!");
-                } catch(e) { showToast("Error publishing", "error"); }
-            }
-        };
+  return (
+    <div className="p-8 h-full overflow-y-auto">
+      <h2 className="text-3xl font-bold mb-8 flex items-center gap-3">
+        <Settings className="text-[var(--color-secondary)]" /> {t.settings}
+      </h2>
 
-        const renderBlogs = (blogs) => {
-            const list = document.getElementById('blog-list');
-            list.innerHTML = '';
-            blogs.forEach(blog => {
-                const div = document.createElement('div');
-                div.className = `glass-panel p-6 mb-4`;
-                div.style.color = blog.color;
-                div.style.fontFamily = blog.font;
-                div.innerHTML = `
-                    <h3 class="text-3xl font-bold mb-1">${escapeHTML(blog.title)}</h3>
-                    <h4 class="text-lg opacity-80 mb-4">${escapeHTML(blog.subtitle)}</h4>
-                    <div class="opacity-90 leading-relaxed">${blog.content}</div>
-                    <div class="text-xs opacity-50 mt-4 text-right">${new Date(blog.timestamp).toLocaleString()}</div>
-                `;
-                list.appendChild(div);
-            });
-        };
+      <div className="max-w-2xl mx-auto space-y-6">
+        {/* Dark Mode */}
+        <div className="flex items-center justify-between p-6 bg-white/40 backdrop-blur-md rounded-3xl shadow-lg border border-white/50">
+          <div className="flex items-center gap-4">
+            <div className={`p-3 rounded-full ${settings?.darkMode ? 'bg-indigo-500' : 'bg-orange-400'} text-white`}>
+              {settings?.darkMode ? <Moon size={24} /> : <Sun size={24} />}
+            </div>
+            <div>
+              <h3 className="font-bold text-lg">Appearance</h3>
+              <p className="text-sm opacity-70">Toggle light or dark mode</p>
+            </div>
+          </div>
+          <button 
+            onClick={() => onSave({...settings, darkMode: !settings?.darkMode})}
+            className="w-16 h-8 rounded-full bg-gray-300 relative transition-colors shadow-inner"
+            style={{ backgroundColor: settings?.darkMode ? '#4f46e5' : '#cbd5e1' }}
+          >
+            <div className={`w-6 h-6 rounded-full bg-white shadow-md absolute top-1 transition-all ${settings?.darkMode ? 'left-9' : 'left-1'}`}></div>
+          </button>
+        </div>
 
-        // --- Product Logic ---
-        const toggleProductEditor = () => document.getElementById('product-editor-panel').classList.toggle('hidden');
-        
-        const previewProdImg = async (input) => {
-            if(input.files && input.files[0]) {
-                const base64 = await compressImage(input.files[0], 400);
-                const img = document.getElementById('prod-img-preview');
-                img.src = base64;
-                img.classList.remove('hidden');
-            }
-        };
+        {/* Chat Font */}
+        <div className="p-6 bg-white/40 backdrop-blur-md rounded-3xl shadow-lg border border-white/50">
+           <h3 className="font-bold text-lg mb-4 flex items-center gap-2"><MessageCircle size={20} /> Chat Font Style</h3>
+           <div className="flex gap-4">
+              {['sans', 'serif', 'mono'].map(font => (
+                <button 
+                  key={font}
+                  onClick={() => onSave({...settings, chatFont: font})}
+                  className={`flex-1 py-3 rounded-xl font-bold transition-all ${settings?.chatFont === font ? 'bg-[var(--color-secondary)] text-white shadow-lg' : 'bg-white/50 hover:bg-white'}`}
+                  style={{ fontFamily: font === 'sans' ? 'sans-serif' : font === 'serif' ? 'serif' : 'monospace' }}
+                >
+                  {font.charAt(0).toUpperCase() + font.slice(1)}
+                </button>
+              ))}
+           </div>
+        </div>
 
-        const saveProduct = async () => {
-            const name = document.getElementById('prod-name').value.trim();
-            const sub = document.getElementById('prod-sub').value.trim();
-            const price = document.getElementById('prod-price').value.trim();
-            const desc = document.getElementById('prod-desc').value.trim();
-            const color = document.getElementById('prod-color').value;
-            const font = document.getElementById('prod-font').value;
-            const img = document.getElementById('prod-img-preview').src;
-            const hasDetails = document.getElementById('prod-has-details').checked;
-            const detailsText = document.getElementById('prod-details-text').value;
+        {/* Music */}
+        <div className="p-6 bg-white/40 backdrop-blur-md rounded-3xl shadow-lg border border-white/50">
+           <h3 className="font-bold text-lg mb-4 flex items-center gap-2"><Music size={20} /> Background Music</h3>
+           <div className="space-y-3">
+              {musics.map(m => (
+                <label key={m.label} className="flex items-center gap-3 p-3 bg-white/50 rounded-xl cursor-pointer hover:bg-white transition-colors">
+                  <input 
+                    type="radio" 
+                    name="music" 
+                    checked={settings?.music === m.url} 
+                    onChange={() => onSave({...settings, music: m.url})} 
+                    className="w-5 h-5 accent-[var(--color-secondary)]" 
+                  />
+                  <span className="font-semibold">{m.label}</span>
+                </label>
+              ))}
+           </div>
+        </div>
 
-            if(!name || !price) return showToast("Name and Price required", "error");
-
-            const db = window.getDb();
-            if(db) {
-                try {
-                    await addDoc(collection(db, 'artifacts', window.getAppId(), 'public', 'data', 'products'), {
-                        name, sub, price, desc, color, font, img: img.length > 100 ? img : '',
-                        hasDetails, detailsText, timestamp: Date.now()
-                    });
-                    toggleProductEditor();
-                    showToast("Product saved!");
-                } catch(e) { showToast("Error saving product", "error"); }
-            }
-        };
-
-        const renderProducts = (products) => {
-            const list = document.getElementById('product-list');
-            list.innerHTML = '';
-            products.forEach(p => {
-                const div = document.createElement('div');
-                div.className = `glass-panel p-4 flex flex-col relative overflow-hidden group hover:scale-105 transition-transform cursor-pointer`;
-                div.style.fontFamily = p.font;
-                div.innerHTML = `
-                    <div class="absolute top-0 right-0 w-16 h-16" style="background: linear-gradient(45deg, transparent 50%, ${p.color} 50%); opacity:0.5;"></div>
-                    ${p.img ? `<img src="${p.img}" class="w-full h-40 object-cover rounded mb-3">` : `<div class="w-full h-40 bg-black bg-opacity-20 rounded mb-3 flex items-center justify-center"><i class="fa-solid fa-box text-3xl opacity-50"></i></div>`}
-                    <div class="flex justify-between items-start mb-1">
-                        <h3 class="text-xl font-bold" style="color: ${p.color}">${escapeHTML(p.name)}</h3>
-                        <span class="text-green-400 font-bold bg-black bg-opacity-40 px-2 py-1 rounded">${escapeHTML(p.price)}</span>
-                    </div>
-                    <p class="text-sm opacity-80 mb-2">${escapeHTML(p.sub)}</p>
-                    <p class="text-sm opacity-90 flex-1">${escapeHTML(p.desc)}</p>
-                    ${p.hasDetails ? `<button class="mt-4 w-full glass-button py-1 rounded text-sm" onclick="alert('Details: ${escapeHTML(p.detailsText)}')">View Details</button>` : ''}
-                `;
-                list.appendChild(div);
-            });
-        };
-
-        // --- Settings Logic ---
-        const toggleDarkMode = (checkbox) => {
-            if(checkbox.checked) {
-                document.getElementById('body').classList.add('dark-mode');
-            } else {
-                document.getElementById('body').classList.remove('dark-mode');
-            }
-        };
-
-        const changeChatFont = (font) => {
-            document.documentElement.style.setProperty('--chat-font', font);
-        };
-
-        const toggleMusic = () => {
-            const audio = document.getElementById('bg-music');
-            const btn = document.getElementById('music-btn');
-            if(isMusicPlaying) {
-                audio.pause();
-                btn.innerHTML = '<i class="fa-solid fa-play mr-2"></i>Play Chill Audio';
-            } else {
-                audio.play().catch(e => showToast("Browser blocked audio autostart", "error"));
-                btn.innerHTML = '<i class="fa-solid fa-pause mr-2"></i>Pause Audio';
-            }
-            isMusicPlaying = !isMusicPlaying;
-        };
-
-        const changeMusic = (url) => {
-            const audio = document.getElementById('bg-music');
-            audio.src = url;
-            if(isMusicPlaying) audio.play();
-        };
-
-        // Simple Translation Dictionary
-        const translations = {
-            en: {
-                loading: "Loading Systems...", cookie_title: "Cookie Settings", cookie_desc: "Please select your cookie preferences to continue to the application.",
-                cookie_nec: "Necessary (Security, Auth)", cookie_pref: "Preferences (Theme, Lang)", cookie_stat: "Statistics (Analytics)", cookie_mark: "Marketing (Ads)", cookie_soc: "Social Media",
-                cookie_all: "Accept All", cookie_sel: "Accept Selected", auth_title: "Welcome System", auth_desc: "Enter login key or log in using email to restore contents.", auth_btn: "Authenticate",
-                nav_chat: "Chat", nav_profile: "Profile", nav_blogs: "Blogs", nav_products: "Products", nav_settings: "Settings", chat_warn: "Messages auto-delete after 7 days",
-                prof_name: "Profile Name (Max 20 chars)", prof_bio: "Description / Bio", prof_save: "Save Profile", admin_req: "Admin Access Required", unlock: "Unlock",
-                cancel: "Cancel", post: "Publish Blog", save: "Save Product", set_dark: "Dark Mode", set_font: "Chat Typing Font", set_lang: "Web Language (Auto Translate)",
-                set_music: "Background Music", set_cookie: "Change Cookie Preferences"
-            },
-            de: {
-                loading: "Systeme werden geladen...", cookie_title: "Cookie-Einstellungen", cookie_desc: "Bitte wählen Sie Ihre Cookie-Präferenzen.",
-                cookie_nec: "Notwendig (Sicherheit)", cookie_pref: "Präferenzen (Design, Spr.)", cookie_stat: "Statistiken (Analyse)", cookie_mark: "Marketing (Werbung)", cookie_soc: "Soziale Medien",
-                cookie_all: "Alle akzeptieren", cookie_sel: "Auswahl akzeptieren", auth_title: "Willkommenssystem", auth_desc: "Geben Sie Ihren Login-Schlüssel oder E-Mail ein.", auth_btn: "Authentifizieren",
-                nav_chat: "Chat", nav_profile: "Profil", nav_blogs: "Blogs", nav_products: "Produkte", nav_settings: "Einstellungen", chat_warn: "Nachrichten werden nach 7 Tagen gelöscht",
-                prof_name: "Profilname (Max 20 Zeichen)", prof_bio: "Beschreibung / Bio", prof_save: "Profil speichern", admin_req: "Admin-Zugang erforderlich", unlock: "Entsperren",
-                cancel: "Abbrechen", post: "Blog veröffentlichen", save: "Produkt speichern", set_dark: "Dunkelmodus", set_font: "Chat-Schriftart", set_lang: "Web-Sprache (Auto-Übersetzung)",
-                set_music: "Hintergrundmusik", set_cookie: "Cookie-Präferenzen ändern"
-            },
-            es: {
-                loading: "Cargando sistemas...", cookie_title: "Configuración de Cookies", cookie_desc: "Seleccione sus preferencias de cookies.",
-                cookie_nec: "Necesarias (Seguridad)", cookie_pref: "Preferencias (Tema, Idioma)", cookie_stat: "Estadísticas (Analítica)", cookie_mark: "Marketing (Anuncios)", cookie_soc: "Redes Sociales",
-                cookie_all: "Aceptar Todo", cookie_sel: "Aceptar Selección", auth_title: "Sistema de Bienvenida", auth_desc: "Ingrese la clave de inicio de sesión o el correo electrónico.", auth_btn: "Autenticar",
-                nav_chat: "Chat", nav_profile: "Perfil", nav_blogs: "Blogs", nav_products: "Productos", nav_settings: "Ajustes", chat_warn: "Los mensajes se eliminan después de 7 días",
-                prof_name: "Nombre (Max 20 caract.)", prof_bio: "Descripción / Bio", prof_save: "Guardar Perfil", admin_req: "Acceso de Administrador", unlock: "Desbloquear",
-                cancel: "Cancelar", post: "Publicar Blog", save: "Guardar Producto", set_dark: "Modo Oscuro", set_font: "Fuente de Chat", set_lang: "Idioma Web (Traducción Auto)",
-                set_music: "Música de fondo", set_cookie: "Cambiar Preferencias de Cookies"
-            }
-        };
-
-        const changeLanguage = (langCode) => {
-            const dict = translations[langCode] || translations['en'];
-            document.querySelectorAll('[data-i18n]').forEach(el => {
-                const key = el.getAttribute('data-i18n');
-                if(dict[key]) el.innerText = dict[key];
-            });
-            showToast("Language updated to " + langCode.toUpperCase());
-        };
-
-    </script>
-</body>
-</html>
+        {/* Language */}
+        <div className="p-6 bg-white/40 backdrop-blur-md rounded-3xl shadow-lg border border-white/50">
+           <h3 className="font-bold text-lg mb-4 flex items-center gap-2"><Globe size={20} /> Web Language (Auto Translate)</h3>
+           <select 
+              value={settings?.language || 'en'} 
+              onChange={e => onSave({...settings, language: e.target.value})}
+              className="w-full p-4 rounded-xl bg-white/80 border-none outline-none font-bold"
+           >
+              <option value="en">English</option>
+              <option value="de">Deutsch</option>
+           </select>
+        </div>
+      </div>
+    </div>
+  );
+}
