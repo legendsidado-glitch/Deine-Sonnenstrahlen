@@ -380,7 +380,14 @@
         };
 
         // --- FIREBASE SETUP ---
-        let firebaseConfig = {};
+        let firebaseConfig = {
+            apiKey: "dummy-api-key",
+            authDomain: "dummy.firebaseapp.com",
+            projectId: "dummy-project",
+            storageBucket: "dummy-project.appspot.com",
+            messagingSenderId: "123456789",
+            appId: "1:123456789:web:abcdef"
+        };
         try {
             if (typeof __firebase_config !== 'undefined' && __firebase_config) {
                 firebaseConfig = typeof __firebase_config === 'string' ? JSON.parse(__firebase_config) : __firebase_config;
@@ -524,6 +531,8 @@
             let step = 0; let cycles = 0;
             const shape = document.getElementById('device-shape');
             const text = document.getElementById('loader-text');
+            const loaderView = document.getElementById('loader-view');
+            const loginView = document.getElementById('login-view');
             
             const intv = setInterval(() => {
                 step = (step + 1) % devices.length;
@@ -534,9 +543,13 @@
                 cycles++;
                 if (cycles >= 10) {
                     clearInterval(intv);
-                    document.getElementById('loader-view').classList.add('hidden');
-                    document.getElementById('login-view').classList.remove('hidden');
-                    document.getElementById('login-view').classList.add('flex');
+                    loaderView.style.opacity = '0';
+                    setTimeout(() => {
+                        loaderView.classList.remove('flex');
+                        loaderView.classList.add('hidden');
+                        loginView.classList.remove('hidden');
+                        loginView.classList.add('flex');
+                    }, 500);
                 }
             }, 800);
         }
