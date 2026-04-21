@@ -16,7 +16,9 @@
         .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(0,0,0,0.3); }
         
         .animate-fade-in { animation: fadeIn 0.3s ease-in-out; }
+        .animate-fade-out { animation: fadeOut 0.3s ease-in-out forwards; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes fadeOut { from { opacity: 1; transform: translateY(0); } to { opacity: 0; transform: translateY(-5px); visibility: hidden; } }
 
         /* Dynamic Theming Base */
         body {
@@ -25,7 +27,6 @@
             color: var(--color-text, #121212);
             min-height: 100vh;
             font-family: var(--font-chat, 'sans-serif');
-            /* Allow body to scroll if content exceeds viewport on mobile */
             overflow-x: hidden;
             overflow-y: auto;
         }
@@ -40,29 +41,49 @@
         .secondary-bg { background-color: var(--color-secondary); }
         .secondary-border { border-color: var(--color-secondary); }
 
-        /* Ensure containers are scrollable */
-        .scrollable-content {
-            overflow-y: auto;
-            -webkit-overflow-scrolling: touch;
+        .scrollable-content { overflow-y: auto; -webkit-overflow-scrolling: touch; }
+        
+        .rich-editor { min-height: 200px; }
+        .rich-editor img, .rich-editor video { display: inline-block; vertical-align: middle; cursor: move; }
+
+        /* Professional Loader Background */
+        .loader-bg {
+            background: linear-gradient(-45deg, #ffd700, #ff9800, #d1c4e9, #4f46e5);
+            background-size: 400% 400%;
+            animation: gradientBG 5s ease infinite;
         }
+        @keyframes gradientBG {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+        
+        .device-svg { transition: all 0.5s ease-in-out; opacity: 0; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
+        .device-svg.active { opacity: 1; }
+        
+        /* Rank Glow Effect */
+        .rank-glow { filter: drop-shadow(0 0 6px currentColor); }
     </style>
 </head>
 <body class="custom-scrollbar">
 
-    <!-- Background Audio -->
     <audio id="bg-audio" loop></audio>
 
-    <!-- 1. LOADER VIEW -->
-    <div id="loader-view" class="fixed inset-0 z-50 flex flex-col items-center justify-center bg-gradient-to-br from-[#ffd700] via-white to-[#d1c4e9] transition-opacity duration-500">
-        <h1 class="text-4xl font-bold mb-12 text-transparent bg-clip-text bg-gradient-to-r from-orange-500 to-purple-600 drop-shadow-lg">
-            Deine Sonnenstrahlen
-        </h1>
-        <div class="relative flex items-center justify-center h-48 w-48">
-            <div id="device-shape" class="bg-white shadow-2xl shadow-orange-500/50 border-4 border-gray-800 transition-all duration-700 ease-in-out flex items-center justify-center overflow-hidden relative" style="width: 60px; height: 120px; border-radius: 12px;">
-                <div class="absolute inset-2 bg-gradient-to-br from-blue-400 to-purple-500 rounded-sm opacity-50"></div>
+    <!-- 1. PROFESSIONAL LOADER VIEW -->
+    <div id="loader-view" class="fixed inset-0 z-50 flex flex-col items-center justify-center loader-bg transition-opacity duration-700">
+        <div class="bg-white/20 backdrop-blur-md p-10 rounded-3xl border border-white/30 shadow-2xl flex flex-col items-center">
+            <h1 class="text-4xl font-black mb-8 text-white drop-shadow-md tracking-wider uppercase text-center">
+                Deine Sonnenstrahlen
+            </h1>
+            <div class="relative w-64 h-64 flex items-center justify-center mb-4">
+                <!-- Device SVGs are injected here by JS -->
+                <div id="device-container" class="relative w-full h-full flex items-center justify-center"></div>
+            </div>
+            <div class="flex items-center gap-3 bg-black/20 px-6 py-2 rounded-full backdrop-blur-lg">
+                <div class="w-2 h-2 bg-white rounded-full animate-ping"></div>
+                <p id="loader-text" class="text-white font-semibold tracking-widest uppercase text-sm">Loading Phone...</p>
             </div>
         </div>
-        <p id="loader-text" class="mt-8 text-gray-700 font-semibold animate-pulse text-center px-4">Loading all environments... Phone</p>
     </div>
 
     <!-- 2. LOGIN VIEW -->
@@ -71,11 +92,23 @@
             <h2 class="text-3xl font-bold mb-6 text-gray-800 text-center flex items-center justify-center gap-2">
                 <i data-lucide="log-in" class="text-orange-500"></i> <span data-i18n="login">Login</span>
             </h2>
-            <input type="text" id="login-email" data-i18n-placeholder="email" placeholder="Email or Key" class="w-full p-4 mb-4 rounded-xl border border-gray-200 focus:ring-4 focus:ring-orange-300 outline-none transition-all">
-            <button id="btn-login-enter" class="w-full py-4 bg-gradient-to-r from-orange-400 to-amber-500 text-white rounded-xl font-bold text-lg hover:shadow-lg hover:shadow-orange-500/50 transition-all transform hover:-translate-y-1">
+            <p class="text-xs text-center text-gray-500 mb-4 font-bold">Enter your Login Code to restore profile without Google</p>
+            <input type="text" id="login-email" data-i18n-placeholder="email" placeholder="Login Code (e.g., DS-A1B2C3) or Email" class="w-full p-4 mb-4 rounded-xl border border-gray-200 focus:ring-4 focus:ring-orange-300 outline-none transition-all">
+            <button id="btn-login-enter" class="w-full py-4 bg-gradient-to-r from-orange-400 to-amber-500 text-white rounded-xl font-bold text-lg hover:shadow-lg hover:shadow-orange-500/50 transition-all transform hover:-translate-y-1 mb-4">
                 <span data-i18n="enter">Enter</span>
             </button>
-            <div class="mt-4 flex items-center justify-center text-sm text-green-600 gap-1">
+            
+            <div class="relative flex items-center justify-center py-2">
+                <div class="border-t border-gray-300 w-full"></div>
+                <span class="bg-transparent px-3 text-sm text-gray-400 font-bold absolute">OR</span>
+            </div>
+
+            <button id="btn-login-google" class="w-full mt-4 py-3 bg-white border border-gray-300 text-gray-700 rounded-xl font-bold text-md hover:bg-gray-50 transition-all flex items-center justify-center gap-3 shadow-sm">
+                <svg class="w-5 h-5" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+                Log in with Google
+            </button>
+
+            <div class="mt-6 flex items-center justify-center text-sm text-green-600 gap-1">
                 <i data-lucide="shield-check" class="w-4 h-4"></i> Secure Firewall Active
             </div>
         </div>
@@ -138,6 +171,9 @@
                 <button onclick="switchTab('products')" id="nav-products" class="nav-btn flex items-center justify-center md:justify-start gap-3 p-3 rounded-2xl transition-all duration-300 font-bold bg-black/5 opacity-70 hover:opacity-100 flex-1 md:flex-none">
                     <i data-lucide="shopping-bag"></i><span class="hidden md:inline" data-i18n="products">Products</span>
                 </button>
+                <button onclick="switchTab('members')" id="nav-members" class="nav-btn flex items-center justify-center md:justify-start gap-3 p-3 rounded-2xl transition-all duration-300 font-bold bg-black/5 opacity-70 hover:opacity-100 flex-1 md:flex-none">
+                    <i data-lucide="users"></i><span class="hidden md:inline" data-i18n="members">Members</span>
+                </button>
                 <button onclick="switchTab('settings')" id="nav-settings" class="nav-btn flex items-center justify-center md:justify-start gap-3 p-3 rounded-2xl transition-all duration-300 font-bold bg-black/5 opacity-70 hover:opacity-100 flex-1 md:flex-none">
                     <i data-lucide="settings"></i><span class="hidden md:inline" data-i18n="settings">Settings</span>
                 </button>
@@ -156,7 +192,17 @@
                 <div id="chat-messages" class="flex-1 overflow-y-auto space-y-4 pr-4 custom-scrollbar scroll-smooth">
                     <!-- Messages render here -->
                 </div>
-                <div class="mt-4 flex items-center gap-3 bg-black/5 p-2 rounded-2xl backdrop-blur-md">
+                
+                <div id="chat-preview-container" class="hidden px-4 pt-2">
+                    <div class="relative inline-block border-4 border-white/50 rounded-xl shadow-lg">
+                        <img id="chat-temp-img-view" class="h-24 rounded-lg object-cover" />
+                        <button id="chat-clear-img" class="absolute -top-3 -right-3 bg-red-500 text-white rounded-full p-1 shadow-md hover:scale-110 transition-transform">
+                            <i data-lucide="x" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="mt-2 flex items-center gap-3 bg-black/5 p-2 rounded-2xl backdrop-blur-md">
                     <label class="p-3 cursor-pointer hover:bg-black/10 rounded-xl transition-colors">
                         <i data-lucide="image" class="secondary-text"></i>
                         <input type="file" id="chat-img-upload" accept="image/*" class="hidden">
@@ -170,10 +216,26 @@
 
             <!-- SECTION: PROFILE -->
             <div id="sec-profile" class="section-container hidden h-full p-8 scrollable-content custom-scrollbar animate-fade-in">
-                <h2 class="text-3xl font-bold mb-8 flex items-center gap-3">
-                    <i data-lucide="user" class="secondary-text"></i> <span data-i18n="profile">Profile</span>
-                </h2>
+                <div class="flex justify-between items-center mb-8">
+                    <h2 class="text-3xl font-bold flex items-center gap-3">
+                        <i data-lucide="user" class="secondary-text"></i> <span data-i18n="profile">Profile</span>
+                    </h2>
+                    <button id="btn-logout" class="px-4 py-2 bg-red-500/10 text-red-600 hover:bg-red-500 hover:text-white rounded-xl font-bold transition-all shadow-sm border border-red-200">
+                        Log Out / Switch Account
+                    </button>
+                </div>
+                
                 <div class="max-w-2xl mx-auto space-y-8 bg-white/40 p-8 rounded-3xl shadow-xl border border-white/50 backdrop-blur-md mb-8">
+                    <div class="bg-[var(--color-primary)] text-blue-900 p-4 rounded-2xl shadow-inner flex items-center justify-between">
+                        <div>
+                            <p class="text-xs font-bold uppercase opacity-70">Your Unique Login Code</p>
+                            <p id="prof-account-code" class="text-xl font-black tracking-widest">DS-XXXXXX</p>
+                        </div>
+                        <button onclick="navigator.clipboard.writeText(document.getElementById('prof-account-code').innerText); alert('Copied!')" class="p-2 bg-white/50 rounded-xl hover:bg-white transition-colors">
+                            <i data-lucide="copy" class="w-5 h-5"></i>
+                        </button>
+                    </div>
+
                     <div class="flex flex-col items-center gap-4">
                         <div class="relative group">
                             <img id="prof-img-preview" src="https://api.dicebear.com/7.x/avataaars/svg?seed=Guest" alt="PFP" class="w-32 h-32 rounded-full object-cover shadow-2xl border-4 border-white transition-transform group-hover:scale-105" />
@@ -183,109 +245,189 @@
                             </label>
                         </div>
                         <span class="text-xs font-bold opacity-50 bg-black/10 px-3 py-1 rounded-full">Max 20 MB File Size</span>
+                        
+                        <div class="w-full mt-2">
+                            <label class="block text-xs font-bold mb-1 opacity-70 text-center">Profile Subtitle / Tagline</label>
+                            <input type="text" id="prof-subtitle" placeholder="E.g. Creative Developer" class="w-full p-3 rounded-xl bg-white/60 border border-white focus:ring-2 outline-none text-gray-900 text-center shadow-inner font-semibold">
+                        </div>
                     </div>
+                    
                     <div>
-                        <label class="block text-sm font-bold mb-2 opacity-80">Profile Name (Max 20 Lines)</label>
+                        <label class="block text-sm font-bold mb-2 opacity-80">Unique Profile Name (Max 20 Lines)</label>
                         <textarea id="prof-name" rows="3" class="w-full p-4 rounded-2xl bg-white/60 border border-white focus:ring-4 outline-none resize-none transition-all text-gray-900 shadow-inner"></textarea>
                     </div>
                     <div>
                         <label class="block text-sm font-bold mb-2 opacity-80">Description / Bio</label>
                         <textarea id="prof-bio" rows="5" class="w-full p-4 rounded-2xl bg-white/60 border border-white focus:ring-4 outline-none resize-none transition-all text-gray-900 shadow-inner"></textarea>
                     </div>
-                    <button id="prof-save" class="w-full py-4 secondary-bg text-white font-bold rounded-2xl shadow-xl hover:shadow-2xl hover:-translate-y-1 transition-all">
-                        <span data-i18n="save">Save</span> Profile
-                    </button>
+
+                    <div class="flex flex-col gap-3">
+                        <button id="prof-save" class="w-full py-4 secondary-bg text-white font-bold rounded-2xl shadow-xl hover:shadow-2xl hover:-translate-y-1 transition-all">
+                            <span data-i18n="save">Save</span> Profile
+                        </button>
+                        <button id="btn-connect-google" class="w-full py-3 bg-white border border-gray-300 text-gray-700 rounded-2xl font-bold hover:bg-gray-50 transition-all flex items-center justify-center gap-3 shadow-md">
+                            <svg class="w-5 h-5" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+                            Connect Google Account
+                        </button>
+                    </div>
                 </div>
             </div>
 
             <!-- SECTION: BLOGS -->
-            <div id="sec-blogs" class="section-container hidden h-full flex flex-col p-8 animate-fade-in">
-                <!-- Gate -->
-                <div id="blogs-gate" class="flex flex-col items-center justify-center h-full text-center space-y-6">
-                    <div class="w-24 h-24 secondary-bg rounded-full flex items-center justify-center shadow-2xl">
-                        <i data-lucide="lock" class="text-white w-12 h-12"></i>
-                    </div>
-                    <h2 class="text-3xl font-bold" data-i18n="passwordReq">Admin Password Required</h2>
-                    <input type="password" id="blogs-pass" class="px-6 py-4 rounded-2xl bg-white/50 border-2 border-white focus:border-gray-400 outline-none text-center text-xl tracking-widest shadow-inner w-full max-w-md text-gray-800" placeholder="••••••••••">
-                    <button id="blogs-unlock-btn" class="px-8 py-4 secondary-bg text-white rounded-xl font-bold shadow-lg hover:scale-105 transition-transform" data-i18n="unlock">Unlock</button>
-                </div>
-                <!-- Content -->
-                <div id="blogs-content" class="hidden flex-col h-full overflow-hidden">
-                    <div class="flex justify-between items-center mb-8 border-b pb-4 border-gray-200/50">
-                        <h2 class="text-3xl font-bold flex items-center gap-3">
-                            <i data-lucide="file-text" class="secondary-text"></i> <span data-i18n="blogs">Blogs</span>
-                        </h2>
-                        <button id="blogs-toggle-edit" class="px-6 py-2 bg-white rounded-xl font-bold shadow-md hover:bg-gray-50 secondary-text">
-                            <span data-i18n="newBlog">New Blog</span>
-                        </button>
-                    </div>
-                    <div class="flex-1 overflow-y-auto space-y-8 pr-4 custom-scrollbar scrollable-content">
-                        <!-- Editor -->
-                        <div id="blogs-editor" class="hidden bg-white/60 p-6 rounded-3xl shadow-xl border border-white space-y-4 text-gray-800">
-                            <div class="flex flex-col sm:flex-row gap-4">
-                                <input type="text" id="blog-title" data-i18n-placeholder="title" placeholder="Title" class="flex-1 p-3 rounded-xl bg-white/80 outline-none shadow-sm">
-                                <div class="flex gap-2">
-                                    <input type="color" id="blog-color" value="#000000" class="h-12 w-12 rounded-xl cursor-pointer">
-                                    <select id="blog-font" class="p-3 rounded-xl bg-white/80 outline-none shadow-sm">
-                                        <option value="sans-serif">Sans Serif</option>
-                                        <option value="serif">Serif</option>
-                                        <option value="monospace">Monospace</option>
-                                    </select>
-                                </div>
-                            </div>
-                            <input type="text" id="blog-subtitle" data-i18n-placeholder="subTitle" placeholder="Subtitle" class="w-full p-3 rounded-xl bg-white/80 outline-none shadow-sm">
-                            <div class="relative">
-                                <p class="text-xs mb-2 opacity-60 font-bold uppercase">Drag & Drop text and photos below (Max 100MB Window)</p>
-                                <div id="blog-body" contenteditable="true" class="w-full min-h-[300px] p-4 rounded-2xl bg-white/80 border border-gray-200 outline-none overflow-y-auto shadow-inner"></div>
-                            </div>
-                            <button id="blog-save-btn" class="w-full py-4 secondary-bg text-white rounded-xl font-bold shadow-lg">Publish Blog</button>
+            <div id="sec-blogs" class="section-container hidden h-full flex flex-col p-8 animate-fade-in relative">
+                <div id="blogs-gate-modal" class="hidden absolute inset-0 z-40 bg-black/60 backdrop-blur-md flex flex-col items-center justify-center text-center space-y-6">
+                    <div class="bg-white p-10 rounded-3xl shadow-2xl w-full max-w-md border border-white/50 animate-fade-in">
+                        <div class="w-20 h-20 secondary-bg rounded-full flex items-center justify-center shadow-lg mx-auto mb-6">
+                            <i data-lucide="lock" class="text-white w-10 h-10"></i>
                         </div>
-                        <!-- List -->
-                        <div id="blogs-list" class="space-y-6 pb-8"></div>
+                        <h2 class="text-2xl font-bold text-gray-800 mb-6" data-i18n="passwordReq">Admin Password Required</h2>
+                        <input type="password" id="blogs-pass" class="w-full px-6 py-4 rounded-xl bg-gray-100 border border-gray-300 outline-none text-center text-xl tracking-widest shadow-inner mb-6 text-gray-800" placeholder="••••••••••">
+                        <div class="flex gap-4">
+                            <button onclick="document.getElementById('blogs-gate-modal').classList.add('hidden')" class="flex-1 py-3 bg-gray-200 text-gray-700 rounded-xl font-bold">Cancel</button>
+                            <button id="blogs-unlock-btn" class="flex-1 py-3 secondary-bg text-white rounded-xl font-bold shadow-lg" data-i18n="unlock">Unlock</button>
+                        </div>
                     </div>
+                </div>
+
+                <div class="flex justify-between items-center mb-8 border-b pb-4 border-gray-200/50">
+                    <h2 class="text-3xl font-bold flex items-center gap-3">
+                        <i data-lucide="file-text" class="secondary-text"></i> <span data-i18n="blogs">Blogs</span>
+                    </h2>
+                    <button id="blogs-toggle-edit" class="px-6 py-2 bg-white rounded-xl font-bold shadow-md hover:bg-gray-50 secondary-text border border-gray-200">
+                        <span data-i18n="newBlog">New Blog</span>
+                    </button>
+                </div>
+
+                <div class="flex-1 overflow-y-auto space-y-8 pr-4 custom-scrollbar scrollable-content">
+                    <div id="blogs-editor" class="hidden bg-white/60 p-6 rounded-3xl shadow-xl border border-white space-y-4 text-gray-800">
+                        <div class="flex flex-col sm:flex-row gap-4">
+                            <input type="text" id="blog-title" data-i18n-placeholder="title" placeholder="Title" class="flex-1 p-3 rounded-xl bg-white/80 outline-none shadow-sm">
+                            <div class="flex gap-2">
+                                <input type="color" id="blog-color" value="#000000" class="h-12 w-12 rounded-xl cursor-pointer">
+                                <select id="blog-font" class="p-3 rounded-xl bg-white/80 outline-none shadow-sm">
+                                    <option value="sans-serif">Sans Serif</option>
+                                    <option value="serif">Serif</option>
+                                    <option value="monospace">Monospace</option>
+                                </select>
+                            </div>
+                        </div>
+                        <input type="text" id="blog-subtitle" data-i18n-placeholder="subTitle" placeholder="Subtitle" class="w-full p-3 rounded-xl bg-white/80 outline-none shadow-sm">
+                        
+                        <div class="flex gap-2 bg-white/50 p-2 rounded-xl border border-white/50 shadow-sm">
+                            <label class="cursor-pointer flex items-center gap-2 font-bold text-sm bg-white px-4 py-2 rounded-lg shadow-sm hover:bg-gray-50 transition-colors">
+                                <i data-lucide="image" class="w-4 h-4 secondary-text"></i> Add Image
+                                <input type="file" accept="image/*" class="hidden" onchange="window.insertMedia(this, 'blog-body', 'image')">
+                            </label>
+                            <label class="cursor-pointer flex items-center gap-2 font-bold text-sm bg-white px-4 py-2 rounded-lg shadow-sm hover:bg-gray-50 transition-colors">
+                                <i data-lucide="video" class="w-4 h-4 secondary-text"></i> Add Video
+                                <input type="file" accept="video/*" class="hidden" onchange="window.insertMedia(this, 'blog-body', 'video')">
+                            </label>
+                        </div>
+
+                        <div class="relative">
+                            <p class="text-xs mb-2 opacity-60 font-bold uppercase">Write text or drag images above around. (Max 100MB)</p>
+                            <div id="blog-body" contenteditable="true" class="w-full rich-editor p-4 rounded-2xl bg-white/80 border border-gray-200 outline-none overflow-y-auto shadow-inner custom-scrollbar"></div>
+                        </div>
+                        <div class="flex gap-4">
+                            <button onclick="document.getElementById('blogs-editor').classList.add('hidden')" class="w-1/3 py-4 bg-gray-300 text-gray-800 rounded-xl font-bold">Cancel</button>
+                            <button id="blog-save-btn" class="w-2/3 py-4 secondary-bg text-white rounded-xl font-bold shadow-lg hover:-translate-y-1 transition-transform">Publish Blog</button>
+                        </div>
+                    </div>
+                    <div id="blogs-list" class="space-y-6 pb-8"></div>
                 </div>
             </div>
 
             <!-- SECTION: PRODUCTS -->
-            <div id="sec-products" class="section-container hidden h-full flex flex-col p-8 animate-fade-in">
-                 <!-- Gate -->
-                 <div id="prods-gate" class="flex flex-col items-center justify-center h-full text-center space-y-6">
-                    <div class="w-24 h-24 secondary-bg rounded-full flex items-center justify-center shadow-2xl">
-                        <i data-lucide="lock" class="text-white w-12 h-12"></i>
-                    </div>
-                    <h2 class="text-3xl font-bold" data-i18n="passwordReq">Admin Password Required</h2>
-                    <input type="password" id="prods-pass" class="px-6 py-4 rounded-2xl bg-white/50 border-2 border-white outline-none text-center text-xl tracking-widest shadow-inner w-full max-w-md text-gray-800" placeholder="••••••••••">
-                    <button id="prods-unlock-btn" class="px-8 py-4 secondary-bg text-white rounded-xl font-bold shadow-lg hover:scale-105 transition-transform" data-i18n="unlock">Unlock</button>
-                </div>
-                <!-- Content -->
-                <div id="prods-content" class="hidden flex-col h-full overflow-hidden">
-                    <div class="flex justify-between items-center mb-8 border-b pb-4 border-gray-200/50">
-                        <h2 class="text-3xl font-bold flex items-center gap-3">
-                            <i data-lucide="shopping-bag" class="secondary-text"></i> <span data-i18n="products">Products</span>
-                        </h2>
-                        <button id="prods-toggle-edit" class="px-6 py-2 bg-[var(--color-primary)] text-green-900 rounded-xl font-bold shadow-md hover:scale-105 transition-transform" data-i18n="addProduct">Add Product</button>
-                    </div>
-                    <div class="flex-1 overflow-y-auto pr-4 custom-scrollbar scrollable-content">
-                        <!-- Editor -->
-                        <div id="prods-editor" class="hidden bg-white/80 p-6 rounded-3xl shadow-2xl border-2 secondary-border mb-8 space-y-4 text-gray-800">
-                            <div class="flex flex-col sm:flex-row gap-4">
-                                <input type="text" id="prod-name" placeholder="Product Name" class="flex-1 p-3 rounded-xl bg-white outline-none shadow-sm">
-                                <input type="text" id="prod-price" data-i18n-placeholder="price" placeholder="Price" class="w-full sm:w-32 p-3 rounded-xl bg-white outline-none shadow-sm">
-                            </div>
-                            <input type="text" id="prod-subtitle" data-i18n-placeholder="subTitle" placeholder="Subtitle" class="w-full p-3 rounded-xl bg-white outline-none shadow-sm">
-                            <div class="flex flex-col sm:flex-row gap-4 items-center bg-white p-3 rounded-xl shadow-sm">
-                                <label class="flex-1 cursor-pointer flex items-center gap-2 font-bold opacity-70 hover:opacity-100">
-                                   <i data-lucide="image"></i> Upload Image (Max 200MB)
-                                   <input type="file" id="prod-img" accept="image/*" class="hidden">
-                                </label>
-                                <input type="color" id="prod-color" value="#1b5e20" class="h-10 w-10 rounded cursor-pointer">
-                            </div>
-                            <textarea id="prod-desc" rows="3" placeholder="Description" class="w-full p-3 rounded-xl bg-white outline-none shadow-inner"></textarea>
-                            <textarea id="prod-details" rows="3" placeholder="Extended Details (Togglable)" class="w-full p-3 rounded-xl bg-white outline-none shadow-inner"></textarea>
-                            <button id="prod-save-btn" class="w-full py-4 secondary-bg text-white rounded-xl font-bold shadow-lg">Save Product</button>
+            <div id="sec-products" class="section-container hidden h-full flex flex-col p-8 animate-fade-in relative">
+                 <div id="prods-gate-modal" class="hidden absolute inset-0 z-40 bg-black/60 backdrop-blur-md flex flex-col items-center justify-center text-center space-y-6">
+                    <div class="bg-white p-10 rounded-3xl shadow-2xl w-full max-w-md border border-white/50 animate-fade-in">
+                        <div class="w-20 h-20 secondary-bg rounded-full flex items-center justify-center shadow-lg mx-auto mb-6">
+                            <i data-lucide="lock" class="text-white w-10 h-10"></i>
                         </div>
-                        <!-- List -->
-                        <div id="prods-list" class="grid grid-cols-1 md:grid-cols-2 gap-6 pb-8"></div>
+                        <h2 class="text-2xl font-bold text-gray-800 mb-6" data-i18n="passwordReq">Admin Password Required</h2>
+                        <input type="password" id="prods-pass" class="w-full px-6 py-4 rounded-xl bg-gray-100 border border-gray-300 outline-none text-center text-xl tracking-widest shadow-inner mb-6 text-gray-800" placeholder="••••••••••">
+                        <div class="flex gap-4">
+                            <button onclick="document.getElementById('prods-gate-modal').classList.add('hidden')" class="flex-1 py-3 bg-gray-200 text-gray-700 rounded-xl font-bold">Cancel</button>
+                            <button id="prods-unlock-btn" class="flex-1 py-3 secondary-bg text-white rounded-xl font-bold shadow-lg" data-i18n="unlock">Unlock</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex justify-between items-center mb-8 border-b pb-4 border-gray-200/50">
+                    <h2 class="text-3xl font-bold flex items-center gap-3">
+                        <i data-lucide="shopping-bag" class="secondary-text"></i> <span data-i18n="products">Products</span>
+                    </h2>
+                    <button id="prods-toggle-edit" class="px-6 py-2 bg-[var(--color-primary)] text-green-900 rounded-xl font-bold shadow-md hover:scale-105 transition-transform border border-[var(--color-primary)]" data-i18n="addProduct">Add Product</button>
+                </div>
+                <div class="flex-1 overflow-y-auto pr-4 custom-scrollbar scrollable-content">
+                    <div id="prods-editor" class="hidden bg-white/80 p-6 rounded-3xl shadow-2xl border-2 secondary-border mb-8 space-y-4 text-gray-800">
+                        <div class="flex flex-col sm:flex-row gap-4">
+                            <input type="text" id="prod-name" placeholder="Product Name" class="flex-1 p-3 rounded-xl bg-white outline-none shadow-sm">
+                            <input type="text" id="prod-price" data-i18n-placeholder="price" placeholder="Price" class="w-full sm:w-32 p-3 rounded-xl bg-white outline-none shadow-sm">
+                        </div>
+                        <input type="text" id="prod-subtitle" data-i18n-placeholder="subTitle" placeholder="Subtitle" class="w-full p-3 rounded-xl bg-white outline-none shadow-sm">
+                        <div class="flex flex-col sm:flex-row gap-4 items-center bg-white p-3 rounded-xl shadow-sm">
+                            <label class="flex-1 cursor-pointer flex items-center gap-2 font-bold opacity-70 hover:opacity-100">
+                               <i data-lucide="image"></i> Main Product Image
+                               <input type="file" id="prod-img" accept="image/*" class="hidden">
+                            </label>
+                            <input type="color" id="prod-color" value="#1b5e20" class="h-10 w-10 rounded cursor-pointer">
+                        </div>
+                        <textarea id="prod-desc" rows="3" placeholder="Description" class="w-full p-3 rounded-xl bg-white outline-none shadow-inner"></textarea>
+                        
+                        <div class="mt-4 border-t border-gray-200 pt-4">
+                            <p class="text-sm font-bold opacity-70 mb-2">Extended Details (Add info, images, and videos here)</p>
+                            <div class="flex gap-2 bg-white/50 p-2 rounded-xl border border-white/50 shadow-sm mb-2">
+                                <label class="cursor-pointer flex items-center gap-2 font-bold text-sm bg-white px-4 py-2 rounded-lg shadow-sm hover:bg-gray-50 transition-colors">
+                                    <i data-lucide="image" class="w-4 h-4 secondary-text"></i> Add Image
+                                    <input type="file" accept="image/*" class="hidden" onchange="window.insertMedia(this, 'prod-details', 'image')">
+                                </label>
+                                <label class="cursor-pointer flex items-center gap-2 font-bold text-sm bg-white px-4 py-2 rounded-lg shadow-sm hover:bg-gray-50 transition-colors">
+                                    <i data-lucide="video" class="w-4 h-4 secondary-text"></i> Add Video
+                                    <input type="file" accept="video/*" class="hidden" onchange="window.insertMedia(this, 'prod-details', 'video')">
+                                </label>
+                            </div>
+                            <div id="prod-details" contenteditable="true" class="w-full rich-editor p-4 rounded-2xl bg-white/80 border border-gray-200 outline-none overflow-y-auto shadow-inner custom-scrollbar bg-white" placeholder="Details and embedded media..."></div>
+                        </div>
+                        
+                        <div class="flex gap-4 mt-4">
+                            <button onclick="document.getElementById('prods-editor').classList.add('hidden')" class="w-1/3 py-4 bg-gray-300 text-gray-800 rounded-xl font-bold">Cancel</button>
+                            <button id="prod-save-btn" class="w-2/3 py-4 secondary-bg text-white rounded-xl font-bold shadow-lg hover:-translate-y-1 transition-transform">Save Product</button>
+                        </div>
+                    </div>
+                    <div id="prods-list" class="grid grid-cols-1 md:grid-cols-2 gap-6 pb-8"></div>
+                </div>
+            </div>
+
+            <!-- SECTION: MEMBERS & RANKS -->
+            <div id="sec-members" class="section-container hidden h-full flex flex-col p-8 animate-fade-in relative">
+                <!-- Modals Overlay Gate -->
+                <div id="members-gate-modal" class="hidden absolute inset-0 z-40 bg-black/60 backdrop-blur-md flex flex-col items-center justify-center text-center space-y-6">
+                    <div class="bg-white p-10 rounded-3xl shadow-2xl w-full max-w-md border border-white/50 animate-fade-in">
+                        <div class="w-20 h-20 secondary-bg rounded-full flex items-center justify-center shadow-lg mx-auto mb-6">
+                            <i data-lucide="shield" class="text-white w-10 h-10"></i>
+                        </div>
+                        <h2 class="text-2xl font-bold text-gray-800 mb-6">Admin Password Required</h2>
+                        <input type="password" id="members-pass" class="w-full px-6 py-4 rounded-xl bg-gray-100 border border-gray-300 outline-none text-center text-xl tracking-widest shadow-inner mb-6 text-gray-800" placeholder="••••••••••">
+                        <div class="flex gap-4">
+                            <button onclick="document.getElementById('members-gate-modal').classList.add('hidden')" class="flex-1 py-3 bg-gray-200 text-gray-700 rounded-xl font-bold">Cancel</button>
+                            <button id="members-unlock-btn" class="flex-1 py-3 secondary-bg text-white rounded-xl font-bold shadow-lg">Unlock</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex justify-between items-center mb-8 border-b pb-4 border-gray-200/50">
+                    <h2 class="text-3xl font-bold flex items-center gap-3">
+                        <i data-lucide="users" class="secondary-text"></i> <span data-i18n="members">Members</span>
+                    </h2>
+                    <button id="members-toggle-admin" class="px-6 py-2 bg-white rounded-xl font-bold shadow-md hover:bg-gray-50 secondary-text border border-gray-200">
+                        Admin Portal
+                    </button>
+                </div>
+
+                <div class="flex-1 overflow-y-auto pr-4 custom-scrollbar scrollable-content">
+                    <div id="members-list" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 pb-8">
+                        <!-- Members populated by JS -->
                     </div>
                 </div>
             </div>
@@ -296,7 +438,6 @@
                     <i data-lucide="settings" class="secondary-text"></i> <span data-i18n="settings">Settings</span>
                 </h2>
                 <div class="max-w-2xl mx-auto space-y-6 text-gray-800 pb-12">
-                    <!-- Dark Mode -->
                     <div class="flex items-center justify-between p-6 bg-white/40 backdrop-blur-md rounded-3xl shadow-lg border border-white/50">
                         <div class="flex items-center gap-4">
                             <div id="theme-icon-container" class="p-3 rounded-full bg-orange-400 text-white transition-colors">
@@ -311,7 +452,6 @@
                             <div id="toggle-dark-knob" class="w-6 h-6 rounded-full bg-white shadow-md absolute top-1 left-1 transition-all"></div>
                         </button>
                     </div>
-                    <!-- Chat Font -->
                     <div class="p-6 bg-white/40 backdrop-blur-md rounded-3xl shadow-lg border border-white/50">
                         <h3 class="font-bold text-lg mb-4 flex items-center gap-2 text-[var(--color-text)]"><i data-lucide="message-circle" class="w-5 h-5"></i> Chat Font Style</h3>
                         <div class="flex flex-wrap gap-4">
@@ -320,14 +460,10 @@
                             <button class="font-btn flex-1 py-3 rounded-xl font-bold transition-all bg-white/50 hover:bg-white" data-font="mono" style="font-family: monospace;">Mono</button>
                         </div>
                     </div>
-                    <!-- Music -->
                     <div class="p-6 bg-white/40 backdrop-blur-md rounded-3xl shadow-lg border border-white/50 text-[var(--color-text)]">
                         <h3 class="font-bold text-lg mb-4 flex items-center gap-2"><i data-lucide="music" class="w-5 h-5"></i> Background Music</h3>
-                        <div class="space-y-3" id="music-options">
-                            <!-- Populated by JS -->
-                        </div>
+                        <div class="space-y-3" id="music-options"></div>
                     </div>
-                    <!-- Language -->
                     <div class="p-6 bg-white/40 backdrop-blur-md rounded-3xl shadow-lg border border-white/50 text-[var(--color-text)]">
                         <h3 class="font-bold text-lg mb-4 flex items-center gap-2"><i data-lucide="globe" class="w-5 h-5"></i> Web Language</h3>
                         <select id="lang-select" class="w-full p-4 rounded-xl bg-white/80 border-none outline-none font-bold text-gray-900 shadow-sm">
@@ -343,8 +479,8 @@
     <!-- MAIN LOGIC -->
     <script type="module">
         import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js';
-        import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js';
-        import { getFirestore, collection, addDoc, onSnapshot, doc, setDoc, getDoc } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
+        import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken, GoogleAuthProvider, signInWithPopup, signOut } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js';
+        import { getFirestore, collection, addDoc, onSnapshot, doc, setDoc, getDoc, getDocs } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
 
         // --- GLOBAL STATE ---
         const state = {
@@ -352,10 +488,15 @@
             activeTab: 'chat',
             blogsUnlocked: false,
             productsUnlocked: false,
-            profile: { name: 'Guest User', bio: 'I am new here.', pfp: '', email: '' },
+            membersUnlocked: false,
+            profile: { code: '', name: 'Guest User', bio: '', subtitle: '', pfp: '', email: '', rank: { name: '', color: '#ffffff', icon: 'user', effect: '' } },
             settings: { darkMode: false, chatFont: 'sans', music: '', language: 'en' },
-            tempProdImg: null
+            tempProdImg: null,
+            chatTempImgBase64: null,
+            allProfiles: [] // Cache for members list
         };
+
+        const provider = new GoogleAuthProvider();
 
         // --- UTILITIES & SECURITY ---
         const firewallSanitize = (str) => {
@@ -374,35 +515,26 @@
             });
         };
 
-        // --- DICTIONARY ---
-        const dict = {
-            en: {
-                login: "Log in using Email or Key", email: "Email or Key", enter: "Enter",
-                cookies: "Cookie Preferences", acceptAll: "Accept All", acceptNec: "Necessary Only",
-                chat: "Chat", profile: "Profile", blogs: "Blogs", products: "Products", settings: "Settings",
-                typeMsg: "Type a message...", send: "Send", passwordReq: "Admin Password Required",
-                unlock: "Unlock", newBlog: "New Blog", title: "Title", subTitle: "Subtitle", content: "Content",
-                save: "Save", addProduct: "Add Product", price: "Price"
-            },
-            de: {
-                login: "Mit E-Mail oder Schlüssel einloggen", email: "E-Mail oder Schlüssel", enter: "Eintreten",
-                cookies: "Cookie-Einstellungen", acceptAll: "Alle akzeptieren", acceptNec: "Nur Notwendige",
-                chat: "Chat", profile: "Profil", blogs: "Blogs", products: "Produkte", settings: "Einstellungen",
-                typeMsg: "Schreibe eine Nachricht...", send: "Senden", passwordReq: "Admin-Passwort erforderlich",
-                unlock: "Entsperren", newBlog: "Neuer Blog", title: "Titel", subTitle: "Untertitel", content: "Inhalt",
-                save: "Speichern", addProduct: "Produkt hinzufügen", price: "Preis"
-            }
+        window.insertMedia = async function(inputElem, targetId, type) {
+            if(!inputElem.files || !inputElem.files[0]) return;
+            try {
+                const b64 = await processImageFile(inputElem.files[0]);
+                const el = document.getElementById(targetId);
+                el.focus();
+                const htmlStr = type === 'video'
+                    ? `&nbsp;<video src="${b64}" controls class="max-w-full rounded-xl my-2 shadow-md border border-gray-200" style="max-height: 400px;"></video>&nbsp;`
+                    : `&nbsp;<img src="${b64}" class="max-w-full rounded-xl my-2 shadow-md border border-gray-200" style="max-height: 400px;" />&nbsp;`;
+                document.execCommand('insertHTML', false, htmlStr);
+            } catch (err) { console.error("Media insert error:", err); }
+            inputElem.value = ''; 
         };
 
-        // --- FIREBASE SETUP ---
-        let firebaseConfig = {
-            apiKey: "dummy-api-key",
-            authDomain: "dummy.firebaseapp.com",
-            projectId: "dummy-project",
-            storageBucket: "dummy-project.appspot.com",
-            messagingSenderId: "123456789",
-            appId: "1:123456789:web:abcdef"
+        const dict = {
+            en: { login: "Log in", email: "Email or Key", enter: "Enter", cookies: "Cookie Preferences", acceptAll: "Accept All", acceptNec: "Necessary Only", chat: "Chat", profile: "Profile", blogs: "Blogs", products: "Products", members: "Members", settings: "Settings", typeMsg: "Type a message...", send: "Send", passwordReq: "Admin Password Required", unlock: "Unlock", newBlog: "New Blog", title: "Title", subTitle: "Subtitle", content: "Content", save: "Save", addProduct: "Add Product", price: "Price" },
+            de: { login: "Einloggen", email: "E-Mail oder Schlüssel", enter: "Eintreten", cookies: "Cookie-Einstellungen", acceptAll: "Alle akzeptieren", acceptNec: "Nur Notwendige", chat: "Chat", profile: "Profil", blogs: "Blogs", products: "Produkte", members: "Mitglieder", settings: "Einstellungen", typeMsg: "Schreibe eine Nachricht...", send: "Senden", passwordReq: "Admin-Passwort erforderlich", unlock: "Entsperren", newBlog: "Neuer Blog", title: "Titel", subTitle: "Untertitel", content: "Inhalt", save: "Speichern", addProduct: "Produkt hinzufügen", price: "Preis" }
         };
+
+        let firebaseConfig = { apiKey: "dummy-api-key", authDomain: "dummy.firebaseapp.com", projectId: "dummy-project", storageBucket: "dummy-project.appspot.com", messagingSenderId: "123456789", appId: "1:123456789:web:abcdef" };
         try {
             if (typeof __firebase_config !== 'undefined' && __firebase_config) {
                 firebaseConfig = typeof __firebase_config === 'string' ? JSON.parse(__firebase_config) : __firebase_config;
@@ -417,12 +549,8 @@
         // --- UI UPDATERS ---
         function applyTranslations() {
             const t = dict[state.settings.language] || dict['en'];
-            document.querySelectorAll('[data-i18n]').forEach(el => {
-                el.innerText = t[el.getAttribute('data-i18n')];
-            });
-            document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
-                el.placeholder = t[el.getAttribute('data-i18n-placeholder')];
-            });
+            document.querySelectorAll('[data-i18n]').forEach(el => el.innerText = t[el.getAttribute('data-i18n')]);
+            document.querySelectorAll('[data-i18n-placeholder]').forEach(el => el.placeholder = t[el.getAttribute('data-i18n-placeholder')]);
         }
 
         function applyTheme() {
@@ -435,57 +563,44 @@
             if (state.activeTab === 'profile') { tertiary = '#bbdefb'; }
             else if (state.activeTab === 'blogs') { tertiary = '#ffcdd2'; }
             else if (state.activeTab === 'products') { primary = '#a5d6a7'; secondary = '#1b5e20'; tertiary = '#ffd700'; }
+            else if (state.activeTab === 'members') { tertiary = '#e2e8f0'; secondary = '#64748b'; }
             else if (state.activeTab === 'settings') { secondary = '#ef4444'; }
 
-            document.body.style.setProperty('--color-primary', primary);
-            document.body.style.setProperty('--color-secondary', secondary);
-            document.body.style.setProperty('--color-tertiary', tertiary);
-            document.body.style.setProperty('--color-bg', bg);
-            document.body.style.setProperty('--color-text', text);
-            document.body.style.setProperty('--color-card', cardBg);
+            document.body.style.setProperty('--color-primary', primary); document.body.style.setProperty('--color-secondary', secondary);
+            document.body.style.setProperty('--color-tertiary', tertiary); document.body.style.setProperty('--color-bg', bg);
+            document.body.style.setProperty('--color-text', text); document.body.style.setProperty('--color-card', cardBg);
 
             let fontFam = 'sans-serif';
             if(state.settings.chatFont === 'serif') fontFam = 'serif, Georgia';
             if(state.settings.chatFont === 'mono') fontFam = 'monospace';
             document.body.style.setProperty('--font-chat', fontFam);
             
-            // Update Dark Mode UI
             const toggleKnob = document.getElementById('toggle-dark-knob');
             const toggleBg = document.getElementById('toggle-dark');
             const themeIcon = document.getElementById('theme-icon-container');
             if (isDark) {
-                toggleKnob.style.left = '36px';
-                toggleBg.style.backgroundColor = '#4f46e5';
+                toggleKnob.style.left = '36px'; toggleBg.style.backgroundColor = '#4f46e5';
                 themeIcon.className = 'p-3 rounded-full bg-indigo-500 text-white transition-colors';
                 themeIcon.innerHTML = '<i data-lucide="moon"></i>';
             } else {
-                toggleKnob.style.left = '4px';
-                toggleBg.style.backgroundColor = '#cbd5e1';
+                toggleKnob.style.left = '4px'; toggleBg.style.backgroundColor = '#cbd5e1';
                 themeIcon.className = 'p-3 rounded-full bg-orange-400 text-white transition-colors';
                 themeIcon.innerHTML = '<i data-lucide="sun"></i>';
             }
             lucide.createIcons();
             
-            // Update Font Buttons UI
             document.querySelectorAll('.font-btn').forEach(btn => {
-                if(btn.dataset.font === state.settings.chatFont) {
-                    btn.className = 'font-btn flex-1 py-3 rounded-xl font-bold transition-all secondary-bg text-white shadow-lg';
-                } else {
-                    btn.className = 'font-btn flex-1 py-3 rounded-xl font-bold transition-all bg-white/50 hover:bg-white text-gray-800';
-                }
+                btn.className = (btn.dataset.font === state.settings.chatFont) 
+                    ? 'font-btn flex-1 py-3 rounded-xl font-bold transition-all secondary-bg text-white shadow-lg'
+                    : 'font-btn flex-1 py-3 rounded-xl font-bold transition-all bg-white/50 hover:bg-white text-gray-800';
             });
 
-            // Handle Audio
             const audioEl = document.getElementById('bg-audio');
             if (state.settings.music && audioEl.src !== state.settings.music) {
-                audioEl.src = state.settings.music;
-                audioEl.play().catch(e => console.log("Autoplay blocked", e));
-            } else if (!state.settings.music) {
-                audioEl.pause();
-            }
+                audioEl.src = state.settings.music; audioEl.play().catch(e=>{});
+            } else if (!state.settings.music) { audioEl.pause(); }
         }
 
-        // --- NAVIGATION LOGIC ---
         window.switchTab = function(tabId) {
             state.activeTab = tabId;
             document.querySelectorAll('.section-container').forEach(el => el.classList.add('hidden'));
@@ -494,77 +609,164 @@
             document.querySelectorAll('.nav-btn').forEach(el => {
                 el.className = 'nav-btn flex items-center justify-center md:justify-start gap-3 p-3 rounded-2xl transition-all duration-300 font-bold bg-black/5 opacity-70 hover:opacity-100 text-[var(--color-text)]';
             });
-            const activeBtn = document.getElementById('nav-' + tabId);
-            activeBtn.className = 'nav-btn flex items-center justify-center md:justify-start gap-3 p-3 rounded-2xl transition-all duration-300 font-bold secondary-bg text-white shadow-lg transform scale-105';
-            
+            document.getElementById('nav-' + tabId).className = 'nav-btn flex items-center justify-center md:justify-start gap-3 p-3 rounded-2xl transition-all duration-300 font-bold secondary-bg text-white shadow-lg transform scale-105';
             applyTheme();
         };
 
-        // --- DATA PERSISTENCE ---
-        async function loadUserData() {
-            if (!state.user) return;
-            try {
-                const docRef = doc(db, 'artifacts', appId, 'users', state.user.uid, 'userData', 'profile');
-                const snap = await getDoc(docRef);
-                if (snap.exists()) {
-                    const data = snap.data();
-                    if (data.profile) state.profile = { ...state.profile, ...data.profile };
-                    if (data.settings) state.settings = { ...state.settings, ...data.settings };
-                }
-            } catch (err) { console.error("Error fetching profile:", err); }
-            
-            // Populate Profile UI
-            document.getElementById('prof-name').value = state.profile.name;
-            document.getElementById('prof-bio').value = state.profile.bio;
+        function refreshProfileUI() {
+            document.getElementById('prof-name').value = state.profile.name || '';
+            document.getElementById('prof-bio').value = state.profile.bio || '';
+            document.getElementById('prof-subtitle').value = state.profile.subtitle || '';
             if(state.profile.pfp) document.getElementById('prof-img-preview').src = state.profile.pfp;
-            document.getElementById('lang-select').value = state.settings.language;
+            if(state.profile.code) document.getElementById('prof-account-code').innerText = state.profile.code;
+            document.getElementById('lang-select').value = state.settings.language || 'en';
+            applyTheme(); applyTranslations(); renderMusicOptions();
+        }
+
+        // --- AUTH & DATA PERSISTENCE ---
+        async function attemptLogin(inputStr) {
+            inputStr = inputStr.trim();
+            if(!inputStr) return false;
             
-            applyTheme();
-            applyTranslations();
-            renderMusicOptions();
+            // If it starts with DS-, check strictly as Login Key
+            if(inputStr.startsWith('DS-')) {
+                if(firebaseConfig.apiKey !== 'dummy-api-key') {
+                    const profileDoc = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'profiles', inputStr));
+                    if (profileDoc.exists()) {
+                        const pData = profileDoc.data();
+                        state.profile = pData.profile || pData;
+                        state.settings = pData.settings || state.settings;
+                        alert("Profile loaded successfully using Key!");
+                        return true;
+                    } else {
+                        alert("Login Key not found. Proceeding with new profile.");
+                        state.profile.code = inputStr;
+                        return true;
+                    }
+                } else {
+                    state.profile.code = inputStr;
+                    return true;
+                }
+            }
+            // Standard email string
+            state.profile.email = inputStr;
+            return true;
         }
 
         async function saveUserData() {
             if (!state.user || state.user.isAnonymous && firebaseConfig.apiKey === 'dummy-api-key') return;
+            if (!state.profile.code) {
+                state.profile.code = 'DS-' + Math.random().toString(36).substring(2, 8).toUpperCase();
+                document.getElementById('prof-account-code').innerText = state.profile.code;
+            }
+
+            if(firebaseConfig.apiKey !== 'dummy-api-key') {
+                const profilesSnap = await getDocs(collection(db, 'artifacts', appId, 'public', 'data', 'profiles'));
+                let isUnique = true;
+                profilesSnap.forEach(profileDoc => {
+                    const existingProfileData = profileDoc.data().profile || profileDoc.data();
+                    if (existingProfileData.name && existingProfileData.name.trim().toLowerCase() === state.profile.name.trim().toLowerCase() && existingProfileData.code !== state.profile.code) {
+                        isUnique = false;
+                    }
+                });
+                if (!isUnique) return alert("This name is already taken! Please choose another.");
+            }
+
             try {
-                await setDoc(doc(db, 'artifacts', appId, 'users', state.user.uid, 'userData', 'profile'), {
-                    profile: state.profile,
-                    settings: state.settings
-                }, { merge: true });
+                if(firebaseConfig.apiKey !== 'dummy-api-key') {
+                    // Update main user doc
+                    await setDoc(doc(db, 'artifacts', appId, 'users', state.user.uid, 'userData', 'profile'), { profile: state.profile, settings: state.settings }, { merge: true });
+                    // Update public profiles (for Code Login and Member Listing)
+                    await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'profiles', state.profile.code), { profile: state.profile, settings: state.settings }, { merge: true });
+                    // If Google linked, map uid directly for robust finding
+                    await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'profiles', state.user.uid), { profile: state.profile, settings: state.settings }, { merge: true });
+                }
+                alert("Profile Saved successfully!");
             } catch (err) { console.error("Error saving user data", err); }
         }
 
-        // --- INITIALIZATION ---
+        async function handleGoogleLogin() {
+            if(firebaseConfig.apiKey === 'dummy-api-key') return alert("Google Login requires a real Firebase config.");
+            try {
+                const result = await signInWithPopup(auth, provider);
+                const u = result.user;
+                state.user = u;
+                // Attempt to load existing profile
+                const profileDoc = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'profiles', u.uid));
+                if (profileDoc.exists()) {
+                    const pData = profileDoc.data();
+                    state.profile = pData.profile || pData;
+                    state.settings = pData.settings || state.settings;
+                } else {
+                    state.profile.name = u.displayName || 'New User';
+                    state.profile.pfp = u.photoURL || '';
+                    state.profile.email = u.email || '';
+                    await saveUserData();
+                }
+                setupDataListeners(); refreshProfileUI();
+                document.getElementById('login-view').classList.add('hidden');
+                document.getElementById('cookies-view').classList.remove('hidden');
+                document.getElementById('cookies-view').classList.add('flex');
+            } catch(e) { console.error(e); alert("Google sign in failed."); }
+        }
+
+        async function handleGoogleConnect() {
+            if(firebaseConfig.apiKey === 'dummy-api-key') return alert("Requires a real Firebase config.");
+            try {
+                const result = await signInWithPopup(auth, provider);
+                state.user = result.user;
+                await saveUserData();
+                alert("Google Account successfully connected!");
+            } catch(e) { console.error(e); alert("Failed to connect account."); }
+        }
+
+        function handleLogout() {
+            if(firebaseConfig.apiKey !== 'dummy-api-key') signOut(auth);
+            state.user = null;
+            state.profile = { code: '', name: 'Guest User', bio: '', subtitle: '', pfp: '', email: '', rank: { name: '', color: '#ffffff', icon: 'user', effect: '' } };
+            document.getElementById('app-view').classList.remove('flex');
+            document.getElementById('app-view').classList.add('hidden');
+            document.getElementById('login-view').classList.remove('hidden');
+            document.getElementById('login-view').classList.add('flex');
+            document.getElementById('login-email').value = '';
+        }
+
+        // --- LOADER ---
         function runLoader() {
-            const devices = [
-                { w: '60px', h: '120px', r: '12px', label: 'Phone' },
-                { w: '160px', h: '100px', r: '8px', label: 'TV' },
-                { w: '100px', h: '140px', r: '16px', label: 'Tablet' },
-                { w: '140px', h: '90px', r: '4px 4px 0 0', label: 'Laptop' },
-                { w: '70px', h: '120px', r: '4px', label: 'PC' }
+            const shapes = [
+                // Phone
+                `<svg viewBox="0 0 100 200" class="w-full h-full drop-shadow-2xl"><rect x="25" y="20" width="50" height="100" rx="8" fill="#1f2937" stroke="#ffffff" stroke-width="2"/><rect x="28" y="25" width="44" height="85" rx="4" fill="#3b82f6"/><path d="M40 23 h20" stroke="#fff" stroke-width="1.5" stroke-linecap="round"/><circle cx="50" cy="115" r="2.5" fill="#fff"/></svg>`,
+                // TV
+                `<svg viewBox="0 0 200 150" class="w-full h-full drop-shadow-2xl"><rect x="20" y="30" width="160" height="90" rx="4" fill="#111827" stroke="#fff" stroke-width="2"/><rect x="23" y="33" width="154" height="84" rx="2" fill="#8b5cf6"/><path d="M90 120 l-10 15 h40 l-10 -15 z" fill="#fff"/></svg>`,
+                // Tablet
+                `<svg viewBox="0 0 150 200" class="w-full h-full drop-shadow-2xl"><rect x="30" y="20" width="90" height="130" rx="8" fill="#1f2937" stroke="#fff" stroke-width="2"/><rect x="35" y="25" width="80" height="120" rx="4" fill="#ec4899"/><circle cx="75" cy="140" r="2" fill="#fff"/></svg>`,
+                // Laptop
+                `<svg viewBox="0 0 200 150" class="w-full h-full drop-shadow-2xl"><rect x="40" y="40" width="120" height="70" rx="4" fill="#1f2937" stroke="#fff" stroke-width="2"/><rect x="43" y="43" width="114" height="64" rx="2" fill="#10b981"/><path d="M25 110 h150 v5 a4 4 0 0 1 -4 4 h-142 a4 4 0 0 1 -4 -4 z" fill="#fff"/><rect x="80" y="112" width="40" height="4" rx="2" fill="#9ca3af"/></svg>`,
+                // PC
+                `<svg viewBox="0 0 250 200" class="w-full h-full drop-shadow-2xl"><rect x="30" y="40" width="110" height="70" rx="4" fill="#111827" stroke="#fff" stroke-width="2"/><rect x="33" y="43" width="104" height="64" rx="2" fill="#f59e0b"/><path d="M80 110 v20 h10 v-20 z" fill="#fff"/><path d="M60 130 h50 v4 h-50 z" fill="#fff"/><rect x="160" y="30" width="50" height="100" rx="4" fill="#374151" stroke="#fff" stroke-width="2"/><circle cx="185" cy="45" r="4" fill="#fff"/><line x1="170" y1="60" x2="200" y2="60" stroke="#9ca3af" stroke-width="2"/><line x1="170" y1="70" x2="200" y2="70" stroke="#9ca3af" stroke-width="2"/></svg>`
             ];
+            const labels = ['Phone', 'TV', 'Tablet', 'Laptop', 'PC Workspace'];
             let step = 0; let cycles = 0;
-            const shape = document.getElementById('device-shape');
+            const container = document.getElementById('device-container');
             const text = document.getElementById('loader-text');
             const loaderView = document.getElementById('loader-view');
-            const loginView = document.getElementById('login-view');
             
+            container.innerHTML = shapes.map((svg, i) => `<div class="device-svg ${i===0?'active':''}" id="dev-svg-${i}">${svg}</div>`).join('');
+
             const intv = setInterval(() => {
-                step = (step + 1) % devices.length;
-                shape.style.width = devices[step].w;
-                shape.style.height = devices[step].h;
-                shape.style.borderRadius = devices[step].r;
-                text.innerText = "Loading all environments... " + devices[step].label;
+                document.getElementById(`dev-svg-${step}`).classList.remove('active');
+                step = (step + 1) % shapes.length;
+                document.getElementById(`dev-svg-${step}`).classList.add('active');
+                text.innerText = "Loading " + labels[step] + "...";
                 cycles++;
-                if (cycles >= 10) {
+                if (cycles >= 9) {
                     clearInterval(intv);
-                    loaderView.style.opacity = '0';
+                    loaderView.classList.add('opacity-0');
                     setTimeout(() => {
-                        loaderView.classList.remove('flex');
                         loaderView.classList.add('hidden');
-                        loginView.classList.remove('hidden');
-                        loginView.classList.add('flex');
-                    }, 500);
+                        document.getElementById('login-view').classList.remove('hidden');
+                        document.getElementById('login-view').classList.add('flex');
+                    }, 700);
                 }
             }, 800);
         }
@@ -576,102 +778,123 @@
                 } else if (firebaseConfig.apiKey !== 'dummy-api-key') {
                     await signInAnonymously(auth);
                 } else {
-                    // GitHub dummy mode
                     state.user = { uid: 'guest-' + Date.now(), isAnonymous: true };
-                    setupDataListeners();
-                    loadUserData();
                 }
             } catch (error) { console.error("Auth init error:", error); }
         }
 
-        // --- EVENT LISTENERS SETUP ---
-        document.addEventListener('DOMContentLoaded', () => {
-            lucide.createIcons();
-            runLoader();
-            initAuth();
+        // --- GLOBAL ADMIN RANK SAVER ---
+        window.toggleRankEdit = function(code) {
+            document.getElementById('rank-edit-' + code).classList.toggle('hidden');
+        };
+        window.saveRank = async function(code) {
+            const name = firewallSanitize(document.getElementById('rank-name-' + code).value);
+            const color = document.getElementById('rank-color-' + code).value;
+            const icon = document.getElementById('rank-icon-' + code).value;
+            const effect = document.getElementById('rank-effect-' + code).value;
 
-            onAuthStateChanged(auth, u => {
-                if (u) {
-                    state.user = u;
-                    loadUserData();
-                    setupDataListeners();
-                }
+            if(firebaseConfig.apiKey !== 'dummy-api-key') {
+                try {
+                    const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'profiles', code);
+                    const snap = await getDoc(docRef);
+                    if(snap.exists()) {
+                        const data = snap.data();
+                        if(!data.profile.rank) data.profile.rank = {};
+                        data.profile.rank = { name, color, icon, effect };
+                        await setDoc(docRef, data, { merge: true });
+                        
+                        // If editing own profile, reflect locally immediately
+                        if(state.profile.code === code) {
+                            state.profile.rank = data.profile.rank;
+                        }
+                        
+                        document.getElementById('rank-edit-' + code).classList.add('hidden');
+                        alert('Rank updated successfully!');
+                    }
+                } catch(e) { console.error("Error saving rank:", e); }
+            } else {
+                alert("Rank saving requires an active Firebase backend.");
+            }
+        };
+
+        // --- EVENT LISTENERS ---
+        document.addEventListener('DOMContentLoaded', async () => {
+            lucide.createIcons(); runLoader(); 
+            
+            await initAuth();
+
+            onAuthStateChanged(auth, u => { 
+                if (u) { 
+                    state.user = u; 
+                    setupDataListeners(); 
+                } 
             });
 
-            // Login -> Cookies
-            document.getElementById('btn-login-enter').onclick = () => {
-                state.profile.email = document.getElementById('login-email').value;
-                document.getElementById('login-view').classList.remove('flex');
-                document.getElementById('login-view').classList.add('hidden');
-                document.getElementById('cookies-view').classList.remove('hidden');
-                document.getElementById('cookies-view').classList.add('flex');
+            document.getElementById('btn-login-enter').onclick = async () => {
+                const inputVal = document.getElementById('login-email').value;
+                await attemptLogin(inputVal);
+                refreshProfileUI();
+                document.getElementById('login-view').classList.replace('flex', 'hidden');
+                document.getElementById('cookies-view').classList.replace('hidden', 'flex');
             };
 
-            // Cookies -> App
+            document.getElementById('btn-login-google').onclick = handleGoogleLogin;
+
             const enterApp = () => {
-                document.getElementById('cookies-view').classList.remove('flex');
-                document.getElementById('cookies-view').classList.add('hidden');
-                document.getElementById('app-view').classList.remove('hidden');
-                document.getElementById('app-view').classList.add('flex');
-                switchTab('chat');
+                document.getElementById('cookies-view').classList.replace('flex', 'hidden');
+                document.getElementById('app-view').classList.replace('hidden', 'flex');
+                switchTab('chat'); refreshProfileUI();
             };
             document.getElementById('btn-cookie-nec').onclick = enterApp;
             document.getElementById('btn-cookie-all').onclick = enterApp;
 
-            // Chat Send
+            // Chat
             const sendChat = async () => {
                 const input = document.getElementById('chat-input');
                 const text = input.value;
-                if(!text.trim() || !state.user) return;
-                const cleanText = firewallSanitize(text);
+                if((!text.trim() && !state.chatTempImgBase64) || !state.user) return;
                 
-                if(firebaseConfig.apiKey === 'dummy-api-key') {
-                    // Local mock for GitHub
-                    const mockMsg = {
-                        text: cleanText, senderId: state.user.uid, senderName: state.profile.name,
-                        senderPfp: state.profile.pfp, timestamp: Date.now()
-                    };
-                    renderChatMsg(mockMsg);
-                    input.value = '';
-                    return;
-                }
-
-                try {
-                    await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'chats'), {
-                        text: cleanText, senderId: state.user.uid, senderName: state.profile.name,
-                        senderPfp: state.profile.pfp, timestamp: Date.now()
-                    });
-                    input.value = '';
-                } catch(e) {}
+                const payload = { 
+                    text: firewallSanitize(text), 
+                    senderId: state.user.uid, 
+                    senderName: state.profile.name, 
+                    senderPfp: state.profile.pfp, 
+                    senderRank: state.profile.rank, // Attach rank to message
+                    timestamp: Date.now() 
+                };
+                if (state.chatTempImgBase64) payload.imageUrl = state.chatTempImgBase64;
+                
+                if(firebaseConfig.apiKey === 'dummy-api-key') renderChatMsg(payload);
+                else { try { await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'chats'), payload); } catch(e) {} }
+                
+                input.value = ''; state.chatTempImgBase64 = null;
+                document.getElementById('chat-preview-container').classList.add('hidden');
+                document.getElementById('chat-temp-img-view').src = '';
             };
             document.getElementById('chat-send').onclick = sendChat;
             document.getElementById('chat-input').onkeydown = (e) => { if(e.key === 'Enter') sendChat(); };
             
-            // Chat Image Upload
             document.getElementById('chat-img-upload').onchange = async (e) => {
-                if(e.target.files[0] && state.user) {
+                if(e.target.files[0]) {
                     try {
                         const b64 = await processImageFile(e.target.files[0]);
-                        if(firebaseConfig.apiKey === 'dummy-api-key') {
-                            renderChatMsg({ text: '', imageUrl: b64, senderId: state.user.uid, senderName: state.profile.name, senderPfp: state.profile.pfp, timestamp: Date.now() });
-                            return;
-                        }
-                        await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'chats'), {
-                            text: '', imageUrl: b64, senderId: state.user.uid, senderName: state.profile.name,
-                            senderPfp: state.profile.pfp, timestamp: Date.now()
-                        });
-                    } catch(err) {}
+                        state.chatTempImgBase64 = b64;
+                        document.getElementById('chat-temp-img-view').src = b64;
+                        document.getElementById('chat-preview-container').classList.remove('hidden');
+                    } catch(err) { console.error(err); }
                 }
             };
+            document.getElementById('chat-clear-img').onclick = () => {
+                state.chatTempImgBase64 = null;
+                document.getElementById('chat-preview-container').classList.add('hidden');
+            };
 
-            // Profile Save & Image
+            // Profile
             document.getElementById('prof-img-upload').onchange = async (e) => {
-                const file = e.target.files[0];
-                if(file) {
-                    if (file.size > 20 * 1024 * 1024) return alert("Max 20MB allowed");
-                    const b64 = await processImageFile(file);
-                    state.profile.pfp = b64;
-                    document.getElementById('prof-img-preview').src = b64;
+                if(e.target.files[0]) {
+                    if (e.target.files[0].size > 20 * 1024 * 1024) return alert("Max 20MB allowed");
+                    const b64 = await processImageFile(e.target.files[0]);
+                    state.profile.pfp = b64; document.getElementById('prof-img-preview').src = b64;
                 }
             };
             document.getElementById('prof-save').onclick = () => {
@@ -679,124 +902,101 @@
                 if(nameLines.length <= 20) {
                     state.profile.name = document.getElementById('prof-name').value;
                     state.profile.bio = document.getElementById('prof-bio').value;
+                    state.profile.subtitle = document.getElementById('prof-subtitle').value;
                     saveUserData();
                 } else alert("Max 20 lines allowed for name.");
             };
+            document.getElementById('btn-connect-google').onclick = handleGoogleConnect;
+            document.getElementById('btn-logout').onclick = handleLogout;
 
-            // Blogs Gate & Editors
+            // Blogs
+            document.getElementById('blogs-toggle-edit').onclick = () => {
+                if(!state.blogsUnlocked) document.getElementById('blogs-gate-modal').classList.remove('hidden');
+                else document.getElementById('blogs-editor').classList.remove('hidden');
+            };
             document.getElementById('blogs-unlock-btn').onclick = () => {
                 if(document.getElementById('blogs-pass').value === 'Sonnenstrahlen-47-47053') {
-                    document.getElementById('blogs-gate').classList.add('hidden');
-                    document.getElementById('blogs-content').classList.remove('hidden');
-                    document.getElementById('blogs-content').classList.add('flex');
+                    document.getElementById('blogs-gate-modal').classList.add('hidden');
+                    document.getElementById('blogs-editor').classList.remove('hidden');
                     state.blogsUnlocked = true;
                 } else alert("Invalid Password");
             };
-            document.getElementById('blogs-toggle-edit').onclick = () => {
-                document.getElementById('blogs-editor').classList.toggle('hidden');
-            };
             document.getElementById('blog-save-btn').onclick = async () => {
-                const b = {
-                    title: firewallSanitize(document.getElementById('blog-title').value),
-                    subtitle: firewallSanitize(document.getElementById('blog-subtitle').value),
-                    color: document.getElementById('blog-color').value,
-                    font: document.getElementById('blog-font').value,
-                    content: firewallSanitize(document.getElementById('blog-body').innerHTML),
-                    timestamp: Date.now()
-                };
-                if(firebaseConfig.apiKey !== 'dummy-api-key') {
-                    await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'blogs'), b);
-                }
+                const b = { title: firewallSanitize(document.getElementById('blog-title').value), subtitle: firewallSanitize(document.getElementById('blog-subtitle').value), color: document.getElementById('blog-color').value, font: document.getElementById('blog-font').value, content: firewallSanitize(document.getElementById('blog-body').innerHTML), timestamp: Date.now() };
+                if(firebaseConfig.apiKey !== 'dummy-api-key') await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'blogs'), b);
                 document.getElementById('blogs-editor').classList.add('hidden');
-                document.getElementById('blog-title').value = '';
-                document.getElementById('blog-subtitle').value = '';
-                document.getElementById('blog-body').innerHTML = '';
+                document.getElementById('blog-title').value = ''; document.getElementById('blog-subtitle').value = ''; document.getElementById('blog-body').innerHTML = '';
             };
 
-            // Products Gate & Editors
+            // Products
+            document.getElementById('prods-toggle-edit').onclick = () => {
+                if(!state.productsUnlocked) document.getElementById('prods-gate-modal').classList.remove('hidden');
+                else document.getElementById('prods-editor').classList.remove('hidden');
+            };
             document.getElementById('prods-unlock-btn').onclick = () => {
                 if(document.getElementById('prods-pass').value === 'Sonnenstrahlen-47.09-47053') {
-                    document.getElementById('prods-gate').classList.add('hidden');
-                    document.getElementById('prods-content').classList.remove('hidden');
-                    document.getElementById('prods-content').classList.add('flex');
+                    document.getElementById('prods-gate-modal').classList.add('hidden');
+                    document.getElementById('prods-editor').classList.remove('hidden');
                     state.productsUnlocked = true;
                 } else alert("Invalid Password");
             };
-            document.getElementById('prods-toggle-edit').onclick = () => {
-                document.getElementById('prods-editor').classList.toggle('hidden');
-            };
-            document.getElementById('prod-img').onchange = async (e) => {
-                if(e.target.files[0]) state.tempProdImg = await processImageFile(e.target.files[0]);
-            };
+            document.getElementById('prod-img').onchange = async (e) => { if(e.target.files[0]) state.tempProdImg = await processImageFile(e.target.files[0]); };
             document.getElementById('prod-save-btn').onclick = async () => {
-                const p = {
-                    name: firewallSanitize(document.getElementById('prod-name').value),
-                    price: firewallSanitize(document.getElementById('prod-price').value),
-                    subtitle: firewallSanitize(document.getElementById('prod-subtitle').value),
-                    color: document.getElementById('prod-color').value,
-                    description: firewallSanitize(document.getElementById('prod-desc').value),
-                    details: firewallSanitize(document.getElementById('prod-details').value),
-                    pfp: state.tempProdImg || '',
-                    timestamp: Date.now()
-                };
-                if(firebaseConfig.apiKey !== 'dummy-api-key') {
-                    await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'products'), p);
-                }
+                const p = { name: firewallSanitize(document.getElementById('prod-name').value), price: firewallSanitize(document.getElementById('prod-price').value), subtitle: firewallSanitize(document.getElementById('prod-subtitle').value), color: document.getElementById('prod-color').value, description: firewallSanitize(document.getElementById('prod-desc').value), details: firewallSanitize(document.getElementById('prod-details').innerHTML), pfp: state.tempProdImg || '', timestamp: Date.now() };
+                if(firebaseConfig.apiKey !== 'dummy-api-key') await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'products'), p);
                 document.getElementById('prods-editor').classList.add('hidden');
-                ['prod-name','prod-price','prod-subtitle','prod-desc','prod-details'].forEach(id => document.getElementById(id).value = '');
-                state.tempProdImg = null;
+                ['prod-name','prod-price','prod-subtitle','prod-desc'].forEach(id => document.getElementById(id).value = '');
+                document.getElementById('prod-details').innerHTML = ''; state.tempProdImg = null;
             };
 
-            // Settings Listeners
-            document.getElementById('toggle-dark').onclick = () => {
-                state.settings.darkMode = !state.settings.darkMode;
-                applyTheme(); saveUserData();
+            // Members
+            document.getElementById('members-toggle-admin').onclick = () => {
+                if(!state.membersUnlocked) document.getElementById('members-gate-modal').classList.remove('hidden');
             };
-            document.querySelectorAll('.font-btn').forEach(btn => {
-                btn.onclick = () => {
-                    state.settings.chatFont = btn.dataset.font;
-                    applyTheme(); saveUserData();
-                };
-            });
-            document.getElementById('lang-select').onchange = (e) => {
-                state.settings.language = e.target.value;
-                applyTranslations(); saveUserData();
+            document.getElementById('members-unlock-btn').onclick = () => {
+                // Using blog password for admin ranking portal
+                if(document.getElementById('members-pass').value === 'Sonnenstrahlen-47-47053') {
+                    document.getElementById('members-gate-modal').classList.add('hidden');
+                    state.membersUnlocked = true;
+                    alert("Admin Portal unlocked. You can now edit user ranks.");
+                    renderMembersList(); // Re-render to show edit buttons
+                } else alert("Invalid Password");
             };
+
+            // Settings
+            document.getElementById('toggle-dark').onclick = () => { state.settings.darkMode = !state.settings.darkMode; applyTheme(); saveUserData(); };
+            document.querySelectorAll('.font-btn').forEach(btn => { btn.onclick = () => { state.settings.chatFont = btn.dataset.font; applyTheme(); saveUserData(); }; });
+            document.getElementById('lang-select').onchange = (e) => { state.settings.language = e.target.value; applyTranslations(); saveUserData(); };
         });
 
-        // --- DYNAMIC RENDERING ---
+        // --- RENDERERS ---
         function renderMusicOptions() {
-            const musics = [
-                { label: 'None', url: '' },
-                { label: 'Chill Lofi (Bensound)', url: 'https://www.bensound.com/bensound-music/bensound-chill.mp3' },
-                { label: 'Acoustic Breeze', url: 'https://www.bensound.com/bensound-music/bensound-acousticbreeze.mp3' }
-            ];
-            const container = document.getElementById('music-options');
-            container.innerHTML = '';
+            const musics = [{ label: 'None', url: '' }, { label: 'Chill Lofi', url: 'https://www.bensound.com/bensound-music/bensound-chill.mp3' }, { label: 'Acoustic Breeze', url: 'https://www.bensound.com/bensound-music/bensound-acousticbreeze.mp3' }];
+            const container = document.getElementById('music-options'); container.innerHTML = '';
             musics.forEach(m => {
                 const isChecked = state.settings.music === m.url ? 'checked' : '';
-                container.innerHTML += `
-                    <label class="flex items-center gap-3 p-3 bg-white/50 rounded-xl cursor-pointer hover:bg-white transition-colors text-gray-900 shadow-sm">
-                        <input type="radio" name="music" value="${m.url}" ${isChecked} class="music-radio w-5 h-5 accent-orange-500">
-                        <span class="font-semibold">${m.label}</span>
-                    </label>
-                `;
+                container.innerHTML += `<label class="flex items-center gap-3 p-3 bg-white/50 rounded-xl cursor-pointer hover:bg-white transition-colors text-gray-900 shadow-sm"><input type="radio" name="music" value="${m.url}" ${isChecked} class="music-radio w-5 h-5 accent-orange-500"><span class="font-semibold">${m.label}</span></label>`;
             });
-            document.querySelectorAll('.music-radio').forEach(r => {
-                r.onchange = (e) => {
-                    state.settings.music = e.target.value;
-                    applyTheme(); saveUserData();
-                }
-            });
+            document.querySelectorAll('.music-radio').forEach(r => { r.onchange = (e) => { state.settings.music = e.target.value; applyTheme(); saveUserData(); } });
         }
 
         function renderChatMsg(msg) {
             const container = document.getElementById('chat-messages');
             const isMe = msg.senderId === state.user?.uid;
             const date = new Date(msg.timestamp || Date.now());
-            const imgHtml = msg.imageUrl ? `<img src="${msg.imageUrl}" class="rounded-xl max-w-full h-auto max-h-60 object-contain" />` : `<p class="break-words">${msg.text}</p>`;
+            const imgHtml = msg.imageUrl ? `<img src="${msg.imageUrl}" class="rounded-xl max-w-full h-auto max-h-60 object-contain mb-2" />` : ``;
+            const textHtml = msg.text ? `<p class="break-words">${msg.text}</p>` : ``;
             const bStyle = isMe ? 'secondary-bg text-white rounded-tr-none' : 'bg-black/5 rounded-tl-none backdrop-blur-md';
             
+            // Build Rank Tag
+            let rankHtml = '';
+            if(msg.senderRank && msg.senderRank.name) {
+                const effClass = msg.senderRank.effect === 'glow' ? 'rank-glow' : msg.senderRank.effect;
+                rankHtml = `<div class="flex items-center gap-1 text-[10px] font-black uppercase tracking-wider mb-1 ${effClass}" style="color: ${msg.senderRank.color}; text-shadow: 0 0 3px ${msg.senderRank.color}80;">
+                    <i data-lucide="${msg.senderRank.icon}" class="w-3 h-3"></i> ${msg.senderRank.name}
+                </div>`;
+            }
+
             const div = document.createElement('div');
             div.className = `flex gap-4 ${isMe ? 'flex-row-reverse' : ''} animate-fade-in`;
             div.innerHTML = `
@@ -804,92 +1004,140 @@
                 <div class="max-w-[85%] sm:max-w-[70%] flex flex-col ${isMe ? 'items-end' : 'items-start'}">
                     <span class="text-xs opacity-70 mb-1 font-bold">${msg.senderName}</span>
                     <div class="p-4 rounded-2xl shadow-md ${bStyle}">
-                        ${imgHtml}
+                        ${rankHtml}
+                        ${imgHtml}${textHtml}
                     </div>
                     <span class="text-[10px] opacity-50 mt-1">${date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
                 </div>
             `;
-            container.appendChild(div);
-            container.scrollTop = container.scrollHeight;
+            container.appendChild(div); container.scrollTop = container.scrollHeight;
+            setTimeout(() => lucide.createIcons(), 10);
+        }
+
+        function renderMembersList() {
+            const container = document.getElementById('members-list'); container.innerHTML = '';
+            state.allProfiles.forEach(p => {
+                const rankHtml = (p.profile.rank && p.profile.rank.name) 
+                    ? `<div class="flex items-center gap-1 text-xs font-black uppercase mt-2 ${p.profile.rank.effect === 'glow' ? 'rank-glow' : p.profile.rank.effect}" style="color: ${p.profile.rank.color}; text-shadow: 0 0 3px ${p.profile.rank.color}80;">
+                        <i data-lucide="${p.profile.rank.icon}" class="w-4 h-4"></i> ${p.profile.rank.name}
+                       </div>` 
+                    : `<span class="text-xs opacity-50 font-bold mt-2">No Rank</span>`;
+
+                let editHtml = '';
+                if(state.membersUnlocked && p.profile.code) {
+                    editHtml = `
+                        <button onclick="window.toggleRankEdit('${p.profile.code}')" class="mt-4 w-full py-2 bg-gray-200 hover:bg-gray-300 text-gray-800 rounded-lg text-sm font-bold transition-colors">Edit Rank</button>
+                        <div id="rank-edit-${p.profile.code}" class="hidden flex flex-col gap-3 mt-4 border-t pt-4 border-gray-300">
+                            <input type="text" id="rank-name-${p.profile.code}" value="${p.profile.rank?.name || ''}" placeholder="Rank Title (e.g. Admin)" class="p-2 rounded border border-gray-300 text-sm">
+                            <div class="flex gap-2">
+                                <input type="color" id="rank-color-${p.profile.code}" value="${p.profile.rank?.color || '#ffd700'}" class="w-10 h-10 rounded cursor-pointer p-0 border-0">
+                                <select id="rank-icon-${p.profile.code}" class="flex-1 p-2 rounded border border-gray-300 text-sm">
+                                    <option value="star" ${p.profile.rank?.icon==='star'?'selected':''}>Star</option>
+                                    <option value="shield" ${p.profile.rank?.icon==='shield'?'selected':''}>Shield</option>
+                                    <option value="crown" ${p.profile.rank?.icon==='crown'?'selected':''}>Crown</option>
+                                    <option value="zap" ${p.profile.rank?.icon==='zap'?'selected':''}>Lightning</option>
+                                    <option value="award" ${p.profile.rank?.icon==='award'?'selected':''}>Award</option>
+                                    <option value="gem" ${p.profile.rank?.icon==='gem'?'selected':''}>Gem</option>
+                                    <option value="heart" ${p.profile.rank?.icon==='heart'?'selected':''}>Heart</option>
+                                </select>
+                            </div>
+                            <select id="rank-effect-${p.profile.code}" class="p-2 rounded border border-gray-300 text-sm">
+                                <option value="" ${!p.profile.rank?.effect?'selected':''}>Normal</option>
+                                <option value="glow" ${p.profile.rank?.effect==='glow'?'selected':''}>Glowing</option>
+                                <option value="animate-pulse" ${p.profile.rank?.effect==='animate-pulse'?'selected':''}>Pulse</option>
+                                <option value="animate-bounce" ${p.profile.rank?.effect==='animate-bounce'?'selected':''}>Bounce</option>
+                                <option value="animate-spin" ${p.profile.rank?.effect==='animate-spin'?'selected':''}>Spin</option>
+                            </select>
+                            <button onclick="window.saveRank('${p.profile.code}')" class="w-full py-2 bg-[var(--color-primary)] text-yellow-900 rounded-lg text-sm font-bold">Save Rank</button>
+                        </div>
+                    `;
+                }
+
+                container.innerHTML += `
+                    <div class="bg-white/60 p-6 rounded-3xl shadow-lg border border-white/50 flex flex-col items-center text-center text-gray-800">
+                        <img src="${p.profile.pfp || 'https://api.dicebear.com/7.x/avataaars/svg?seed=Guest'}" class="w-20 h-20 rounded-full shadow-md object-cover border-2 border-white mb-4" />
+                        <h3 class="text-xl font-bold break-words w-full">${p.profile.name}</h3>
+                        ${p.profile.subtitle ? `<p class="text-sm opacity-70 font-semibold mb-2 break-words">${p.profile.subtitle}</p>` : ''}
+                        ${rankHtml}
+                        ${editHtml}
+                    </div>
+                `;
+            });
+            setTimeout(() => lucide.createIcons(), 10);
         }
 
         window.toggleProductDetails = function(id) {
             const el = document.getElementById('prod-details-' + id);
             const btn = document.getElementById('prod-btn-' + id);
-            if(el.classList.contains('hidden')) {
-                el.classList.remove('hidden');
-                btn.innerText = 'Hide Details';
-            } else {
-                el.classList.add('hidden');
-                btn.innerText = 'View Details';
-            }
+            if(el.classList.contains('hidden')) { el.classList.remove('hidden'); btn.innerText = 'Hide Details'; } 
+            else { el.classList.add('hidden'); btn.innerText = 'View Details'; }
         };
 
+        let unsubs = [];
         function setupDataListeners() {
             if(!state.user || firebaseConfig.apiKey === 'dummy-api-key') return;
 
-            // Chats
-            onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'chats'), (snap) => {
-                const oneWeekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
-                const msgs = snap.docs.map(d => ({id: d.id, ...d.data()}))
-                    .filter(m => (m.timestamp || 0) > oneWeekAgo)
-                    .sort((a,b) => (a.timestamp || 0) - (b.timestamp || 0));
-                
-                const container = document.getElementById('chat-messages');
-                container.innerHTML = '';
-                msgs.forEach(msg => renderChatMsg(msg));
-            }, (err) => console.error(err));
+            unsubs.forEach(u => u && u());
+            unsubs = [];
 
-            // Blogs
-            onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'blogs'), (snap) => {
-                const blogs = snap.docs.map(d => ({id: d.id, ...d.data()})).sort((a,b) => (b.timestamp || 0) - (a.timestamp || 0));
-                const container = document.getElementById('blogs-list');
-                container.innerHTML = '';
-                blogs.forEach(b => {
-                    container.innerHTML += `
-                        <article class="bg-white/40 p-8 rounded-3xl shadow-lg border border-white hover:shadow-xl transition-shadow backdrop-blur-md text-gray-800" style="color: ${b.color}; font-family: ${b.font}">
-                            <h3 class="text-3xl sm:text-4xl font-black mb-2">${b.title}</h3>
-                            <h4 class="text-lg sm:text-xl font-semibold opacity-70 mb-6">${b.subtitle}</h4>
-                            <div class="prose max-w-none break-words">${b.content}</div>
-                            <p class="mt-8 text-xs font-bold opacity-40">${new Date(b.timestamp).toLocaleDateString()}</p>
-                        </article>
-                    `;
-                });
-            }, (err) => console.error(err));
+            unsubs.push(
+                onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'chats'), (snap) => {
+                    const oneWeekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+                    const msgs = snap.docs.map(d => ({id: d.id, ...d.data()})).filter(m => (m.timestamp || 0) > oneWeekAgo).sort((a,b) => (a.timestamp || 0) - (b.timestamp || 0));
+                    const container = document.getElementById('chat-messages'); container.innerHTML = '';
+                    msgs.forEach(msg => renderChatMsg(msg));
+                }, (err) => console.error(err))
+            );
 
-            // Products
-            onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'products'), (snap) => {
-                const prods = snap.docs.map(d => ({id: d.id, ...d.data()}));
-                const container = document.getElementById('prods-list');
-                container.innerHTML = '';
-                prods.forEach(p => {
-                    const cColor = p.color || '#1b5e20';
-                    const imgHtml = p.pfp ? `<img src="${p.pfp}" class="w-full h-48 object-cover group-hover:scale-105 transition-transform duration-500" />` : '';
-                    container.innerHTML += `
-                        <div class="bg-gradient-to-b from-white/60 to-white/30 backdrop-blur-md rounded-3xl overflow-hidden shadow-xl border border-white/50 flex flex-col group hover:shadow-2xl hover:shadow-green-500/40 transition-all text-gray-800">
-                            ${imgHtml}
-                            <div class="p-6 flex-1 flex flex-col">
-                                <div class="flex flex-col sm:flex-row justify-between items-start mb-2 gap-2">
-                                    <h3 class="text-2xl font-black" style="color: ${cColor}">${p.name}</h3>
-                                    <span class="text-xl font-bold bg-green-200 text-green-900 px-3 py-1 rounded-lg">${p.price}</span>
+            unsubs.push(
+                onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'blogs'), (snap) => {
+                    const blogs = snap.docs.map(d => ({id: d.id, ...d.data()})).sort((a,b) => (b.timestamp || 0) - (a.timestamp || 0));
+                    const container = document.getElementById('blogs-list'); container.innerHTML = '';
+                    blogs.forEach(b => {
+                        container.innerHTML += `
+                            <article class="bg-white/40 p-8 rounded-3xl shadow-lg border border-white hover:shadow-xl transition-shadow backdrop-blur-md text-gray-800" style="color: ${b.color}; font-family: ${b.font}">
+                                <h3 class="text-3xl sm:text-4xl font-black mb-2">${b.title}</h3>
+                                <h4 class="text-lg sm:text-xl font-semibold opacity-70 mb-6">${b.subtitle}</h4>
+                                <div class="prose max-w-none break-words">${b.content}</div>
+                                <p class="mt-8 text-xs font-bold opacity-40">${new Date(b.timestamp).toLocaleDateString()}</p>
+                            </article>`;
+                    });
+                }, (err) => console.error(err))
+            );
+
+            unsubs.push(
+                onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'products'), (snap) => {
+                    const prods = snap.docs.map(d => ({id: d.id, ...d.data()}));
+                    const container = document.getElementById('prods-list'); container.innerHTML = '';
+                    prods.forEach(p => {
+                        const cColor = p.color || '#1b5e20';
+                        const imgHtml = p.pfp ? `<img src="${p.pfp}" class="w-full h-48 object-cover group-hover:scale-105 transition-transform duration-500" />` : '';
+                        container.innerHTML += `
+                            <div class="bg-gradient-to-b from-white/60 to-white/30 backdrop-blur-md rounded-3xl overflow-hidden shadow-xl border border-white/50 flex flex-col group hover:shadow-2xl hover:shadow-green-500/40 transition-all text-gray-800">
+                                ${imgHtml}
+                                <div class="p-6 flex-1 flex flex-col">
+                                    <div class="flex flex-col sm:flex-row justify-between items-start mb-2 gap-2">
+                                        <h3 class="text-2xl font-black" style="color: ${cColor}">${p.name}</h3>
+                                        <span class="text-xl font-bold bg-green-200 text-green-900 px-3 py-1 rounded-lg">${p.price}</span>
+                                    </div>
+                                    <h4 class="text-sm font-bold opacity-60 mb-4">${p.subtitle}</h4>
+                                    <p class="opacity-80 mb-6 flex-1 break-words">${p.description}</p>
+                                    <div id="prod-details-${p.id}" class="hidden mb-6 p-4 bg-black/5 rounded-xl text-sm animate-fade-in break-words">${p.details || ''}</div>
+                                    <button id="prod-btn-${p.id}" onclick="toggleProductDetails('${p.id}')" class="w-full py-3 bg-white/50 hover:bg-white rounded-xl font-bold transition-colors shadow-sm" style="color: ${cColor}">View Details</button>
                                 </div>
-                                <h4 class="text-sm font-bold opacity-60 mb-4">${p.subtitle}</h4>
-                                <p class="opacity-80 mb-6 flex-1 break-words">${p.description}</p>
-                                
-                                <div id="prod-details-${p.id}" class="hidden mb-6 p-4 bg-black/5 rounded-xl text-sm animate-fade-in break-words">
-                                    ${p.details || ''}
-                                </div>
+                            </div>`;
+                    });
+                }, (err) => console.error(err))
+            );
 
-                                <button id="prod-btn-${p.id}" onclick="toggleProductDetails('${p.id}')" class="w-full py-3 bg-white/50 hover:bg-white rounded-xl font-bold transition-colors shadow-sm" style="color: ${cColor}">
-                                    View Details
-                                </button>
-                            </div>
-                        </div>
-                    `;
-                });
-            }, (err) => console.error(err));
+            // Setup Profiles (Members)
+            unsubs.push(
+                onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'profiles'), (snap) => {
+                    state.allProfiles = snap.docs.map(d => ({id: d.id, ...d.data()})).filter(p => p.profile && p.profile.code);
+                    renderMembersList();
+                }, (err) => console.error(err))
+            );
         }
-
     </script>
 </body>
 </html>
