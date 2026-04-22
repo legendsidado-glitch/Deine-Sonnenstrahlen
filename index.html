@@ -1141,19 +1141,16 @@
     </script>
 </body>
     <script type="module">
-  // Firebase core
   import { initializeApp } from "https://www.gstatic.com/firebasejs/12.12.1/firebase-app.js";
   import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.12.1/firebase-analytics.js";
 
-  // Firebase Auth (LOGIN)
   import { 
-  getAuth, 
-  signInWithEmailAndPassword,
-  GoogleAuthProvider,
-  signInWithPopup
-} from "https://www.gstatic.com/firebasejs/12.12.1/firebase-auth.js";
+    getAuth, 
+    signInWithEmailAndPassword,
+    GoogleAuthProvider,
+    signInWithPopup
+  } from "https://www.gstatic.com/firebasejs/12.12.1/firebase-auth.js";
 
-  // Your config
   const firebaseConfig = {
     apiKey: "AIzaSyDxRKrPrmubSOXpTgOsZlSF8HfTfxuZp2Y",
     authDomain: "deine-sonnenstrahlen-login.firebaseapp.com",
@@ -1164,17 +1161,19 @@
     measurementId: "G-DE92Z63VDT"
   };
 
-  // Initialize Firebase
   const app = initializeApp(firebaseConfig);
   const analytics = getAnalytics(app);
-
-  // Initialize Auth
   const auth = getAuth(app);
 
-  // LOGIN FUNCTION
-  window.login = async () => {
-    const email = document.getElementById("email").value;
-    const password = document.getElementById("password").value;
+  // EMAIL LOGIN (your "Enter" button)
+  document.getElementById("btn-login-enter").onclick = async () => {
+    const email = document.getElementById("login-email").value;
+    const password = prompt("Enter your password:");
+
+    if (!email || !password) {
+      alert("Missing email or password");
+      return;
+    }
 
     try {
       await signInWithEmailAndPassword(auth, email, password);
@@ -1183,16 +1182,17 @@
       alert(err.message);
     }
   };
-        // GOOGLE LOGIN
-window.googleLogin = async () => {
-  const provider = new GoogleAuthProvider();
 
-  try {
-    await signInWithPopup(auth, provider);
-    alert("Google login successful!");
-  } catch (err) {
-    alert(err.message);
-  }
-};
+  // GOOGLE LOGIN (your Google button)
+  document.getElementById("btn-login-google").onclick = async () => {
+    const provider = new GoogleAuthProvider();
+
+    try {
+      await signInWithPopup(auth, provider);
+      alert("Google login successful!");
+    } catch (err) {
+      alert(err.message);
+    }
+  };
 </script>
 </html>
